@@ -79,6 +79,12 @@ export function AuthButtons() {
       <p className="muted magicNote">
         No account needed. Enter your email and we'll send you a secure link.
       </p>
+      <p className="muted" style={{ fontSize: 11, marginTop: 8, textAlign: "center", lineHeight: 1.5 }}>
+        Your documents are stored privately and accessible only to your account.
+        This is a personal research aid — not an official VA tool and not legal
+        or benefits advice. Review all findings with an accredited VSO or
+        claims attorney before taking action.
+      </p>
     </div>
   );
 }
