@@ -967,7 +967,9 @@ button {
   .advisor,
   .testProfile,
   .profileFacts,
-  .liveIntakeGrid {
+  .liveIntakeGrid,
+  .nonVaStatsGrid,
+  .nonVaLaneGrid {
     grid-template-columns: 1fr;
   }
 

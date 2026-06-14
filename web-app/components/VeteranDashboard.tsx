@@ -50,6 +50,128 @@ const opportunityScores = [
   { area: "Post-Surgical Residual Review", opportunity: "Investigate", note: "Aortic surgery, dialysis, numbness, scars, and monitoring need chronology." },
 ];
 
+const nonVaBenefitLanes = [
+  {
+    area: "Florida State Parks",
+    level: "Strong",
+    why: "Florida lists free lifetime military entrance passes for honorably discharged veterans with service-connected disabilities.",
+    next: "Bring photo ID, proof of honorable discharge, and VA service-connected disability documentation to confirm the pass process.",
+    source: "Florida State Parks",
+    sourceUrl: "https://www.floridastateparks.org/learn/florida-state-parks-appreciate-veterans",
+  },
+  {
+    area: "Florida Property Tax",
+    level: "Investigate",
+    why: "Florida FDVA lists a basic property tax exemption for resident veterans with a VA-certified service-connected disability of 10% or greater.",
+    next: "Ask the county property appraiser which exemptions apply now and which require permanent and total status.",
+    source: "Florida Department of Veterans' Affairs",
+    sourceUrl: "https://floridavets.org/benefits-services/housing/",
+  },
+  {
+    area: "Federal Hiring Preference",
+    level: "Ready",
+    why: "The civil-service letter supports the federal employment lane, including 30% or more disabled veteran hiring authority review.",
+    next: "Use the civil-service letter, DD-214/proof of service, and SF-15 where required for federal applications.",
+    source: "U.S. Office of Personnel Management",
+    sourceUrl: "https://www.opm.gov/fedshirevets/veteran-job-seekers/vets/",
+  },
+  {
+    area: "Commissary, Exchange, MWR",
+    level: "Likely",
+    why: "VA lists commissary and exchange eligibility for honorably discharged veterans with a service-connected disability rating.",
+    next: "Confirm VHIC status and whether the card displays the required access indicator before visiting an installation.",
+    source: "VA.gov",
+    sourceUrl: "https://www.va.gov/resources/commissary-and-exchange-privileges-for-veterans/",
+  },
+  {
+    area: "Home Buying / Entitlement Strategy",
+    level: "Ready",
+    why: "The COE confirms VA home-loan eligibility, funding-fee exemption, and prior entitlement charged.",
+    next: "Ask a VA-savvy lender about remaining entitlement, restoration, county loan limits, and buying another home.",
+    source: "Uploaded COE",
+    sourceUrl: "",
+  },
+  {
+    area: "Education / Training",
+    level: "Check",
+    why: "Florida and federal lanes may include education, training, VR&E, and workforce programs depending on goals and eligibility.",
+    next: "Separate claim/medical goals from career goals; identify whether training, certification, or self-employment support is useful.",
+    source: "FDVA / VA program review",
+    sourceUrl: "https://floridavets.org/",
+  },
+  {
+    area: "County Veteran Services",
+    level: "High",
+    why: "County-level benefits, tax filing steps, parks processes, transportation help, and local nonprofit resources vary by county.",
+    next: "Add county to the profile, then build a county checklist for property appraiser, CVSO, parks, and local nonprofit referrals.",
+    source: "Local checklist",
+    sourceUrl: "",
+  },
+  {
+    area: "Hunting / Fishing License Review",
+    level: "Investigate",
+    why: "Florida has created license-fee exemptions for honorably discharged veterans with qualifying service-connected disabilities.",
+    next: "Confirm current FWC rules, proof required, and whether the veteran's rating category qualifies.",
+    source: "FDVA legislative update",
+    sourceUrl: "https://www.floridavets.org/governor-desantis-signs-legislation-to-support-florida-veterans-and-their-families/",
+  },
+  {
+    area: "DMV Veteran Designation",
+    level: "Ready",
+    why: "Florida veterans can add a veteran designation to a driver license or ID card, and veterans with proof of status may avoid certain tax collector service fees.",
+    next: "Bring DD-214 or accepted proof of veteran status to a local service center or tax collector office.",
+    source: "FLHSMV",
+    sourceUrl: "https://www.flhsmv.gov/driver-licenses-id-cards/newdl/designation-fees/",
+  },
+  {
+    area: "Vehicle / License Plate Review",
+    level: "Check",
+    why: "Florida has military and veteran motor-vehicle forms, plates, and some registration-fee exemptions tied to status, orders, disability, or timing.",
+    next: "Ask the county tax collector which plate, registration, or initial-fee exemptions match your exact status before buying or registering a vehicle.",
+    source: "FLHSMV military forms",
+    sourceUrl: "https://www.flhsmv.gov/military/military-forms-packet/",
+  },
+  {
+    area: "National Parks / Federal Recreation",
+    level: "Ready",
+    why: "U.S. military veterans are eligible for a free Military Lifetime Pass for national parks and other federal recreation lands.",
+    next: "Apply online or ask at a participating federal recreation site; keep proof of veteran status available.",
+    source: "National Park Service",
+    sourceUrl: "https://www.nps.gov/planyourvisit/veterans-and-gold-star-families-free-access.htm",
+  },
+  {
+    area: "Theme Park Military Offers",
+    level: "Seasonal",
+    why: "Programs such as Waves of Honor may offer veteran admission or discounts, but redemption windows and guest rules change by park and year.",
+    next: "Check SeaWorld/Busch Gardens/United Parks offers before Memorial Day, Military Appreciation Month, Veterans Day, and planned travel.",
+    source: "United Parks Waves of Honor",
+    sourceUrl: "https://unitedparks.com/programs/waves-of-honor/",
+  },
+];
+
+const seasonalPerks = [
+  {
+    window: "January",
+    title: "Reset annual recreation offers",
+    detail: "Some park and entertainment programs refresh annually. Verify ID.me status and offer rules early.",
+  },
+  {
+    window: "April-May",
+    title: "Military Appreciation Month / Memorial Day scan",
+    detail: "Check theme parks, local attractions, restaurants, museums, and county events. Offers often require online redemption before the holiday.",
+  },
+  {
+    window: "September-November",
+    title: "Veterans Day scan",
+    detail: "Build a local checklist for meals, retail discounts, museums, parks, dental/health events, and city/county ceremonies.",
+  },
+  {
+    window: "Before travel",
+    title: "Proof-of-status packet",
+    detail: "Carry VA health ID card, driver license veteran designation, DD-214 copy, state park pass, national parks pass, and ID.me login access.",
+  },
+];
+
 const lifeEvents = [
   { when: "1985-1988", title: "Air Force service", status: "Verified", detail: "Service records verify honorable Air Force service." },
   { when: "~2007", title: "Aortic aneurysm history", status: "Unconfirmed", detail: "Exact event, records, facility, and diagnosis timeline needed." },
@@ -445,6 +567,85 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
         ))}
       </Card>
 
+    </div>
+  );
+}
+
+export function NonVaBenefits({ profile }: { profile: Profile }) {
+  const state = profile?.state || "Florida";
+  const rating = profile?.current_rating || "90%";
+  const readyCount = nonVaBenefitLanes.filter((lane) => ["Ready", "Strong", "High", "Likely"].includes(lane.level)).length;
+
+  return (
+    <div style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", color: "#172132" }}>
+      <Card
+        title="Non-VA Benefits Navigator"
+        sub={`State, federal, county, retail, housing, and career opportunities for a ${state} veteran with ${rating} service connection.`}
+        badge={`${readyCount} priority lanes`}
+      >
+        <div className="nonVaStatsGrid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, marginBottom: 14 }}>
+          {[
+            { label: "State", value: "Florida", text: "parks, tax, county steps" },
+            { label: "Federal", value: "30%+", text: "hiring preference lane" },
+            { label: "Lifestyle", value: "MWR", text: "commissary / exchange review" },
+            { label: "Housing", value: "COE", text: "buyer strategy" },
+          ].map((item) => (
+            <div key={item.label} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
+              <span style={{ fontSize: 10, color: "#267a56", fontWeight: 800, textTransform: "uppercase" as const }}>{item.label}</span>
+              <div style={{ fontSize: 24, fontWeight: 950, lineHeight: 1.1, marginTop: 3 }}>{item.value}</div>
+              <p style={{ margin: "3px 0 0", fontSize: 11, color: "#667184" }}>{item.text}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="nonVaLaneGrid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+          {nonVaBenefitLanes.map((lane) => (
+            <div key={lane.area} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start", marginBottom: 6 }}>
+                <strong style={{ fontSize: 14 }}>{lane.area}</strong>
+                <Pill label={lane.level} />
+              </div>
+              <p style={{ margin: "0 0 7px", fontSize: 12, color: "#667184", lineHeight: 1.45 }}>{lane.why}</p>
+              <div style={{ padding: "8px 9px", borderRadius: 7, background: "#f4f6f3", border: "1px solid #edf0ea" }}>
+                <span style={{ display: "block", color: "#267a56", fontSize: 10, fontWeight: 850, textTransform: "uppercase" as const }}>Next check</span>
+                <p style={{ margin: "2px 0 0", color: "#172132", fontSize: 12, lineHeight: 1.4 }}>{lane.next}</p>
+              </div>
+              {lane.sourceUrl ? (
+                <a href={lane.sourceUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 7, color: "#315f9e", fontSize: 11, fontWeight: 800, textDecoration: "none" }}>
+                  Source: {lane.source}
+                </a>
+              ) : (
+                <small style={{ display: "block", marginTop: 7, color: "#667184", fontSize: 11 }}>Source: {lane.source}</small>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, border: "1px solid #b9892244", background: "#fbefd0" }}>
+          <strong style={{ display: "block", color: "#8a6319", fontSize: 12 }}>Research assistant posture</strong>
+          <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12, lineHeight: 1.45 }}>
+            These are investigation lanes, not final eligibility decisions. Requirements can vary by county, agency, card status, and documentation.
+          </p>
+        </div>
+      </Card>
+
+      <Card title="Seasonal Perks Tracker" sub="Holiday, travel, DMV, parks, attraction, restaurant, and local appreciation offers need date-aware checking." badge="Time-sensitive">
+        {seasonalPerks.map((perk) => (
+          <div key={perk.title} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 7 }}>
+            <span style={{ minWidth: 92, color: "#b98922", fontSize: 11, fontWeight: 850 }}>{perk.window}</span>
+            <div>
+              <strong style={{ fontSize: 13 }}>{perk.title}</strong>
+              <p style={{ margin: "2px 0 0", color: "#667184", fontSize: 12, lineHeight: 1.45 }}>{perk.detail}</p>
+            </div>
+          </div>
+        ))}
+        <div style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #d9dfd5", background: "#f9fbf7" }}>
+          <strong style={{ display: "block", fontSize: 13 }}>What the app should eventually automate</strong>
+          <p style={{ margin: "3px 0 0", color: "#667184", fontSize: 12, lineHeight: 1.45 }}>
+            A yearly reminder engine that checks official agency pages and verified merchant pages before Memorial Day, Military Appreciation Month, Veterans Day, birthdays, travel dates, vehicle purchases, and home purchases.
+          </p>
+        </div>
+      </Card>
     </div>
   );
 }

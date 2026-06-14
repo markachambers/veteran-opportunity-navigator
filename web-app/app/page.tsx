@@ -1,6 +1,6 @@
 import { signOut } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
-import { VeteranDashboard, KnowledgeGraphLab, ClaimReviewCoach, DocumentTranslator } from "@/components/VeteranDashboard";
+import { VeteranDashboard, KnowledgeGraphLab, ClaimReviewCoach, DocumentTranslator, NonVaBenefits } from "@/components/VeteranDashboard";
 import { AuthButtons } from "@/components/AuthButtons";
 import { ProfileForm } from "@/components/ProfileForm";
 import { DocumentUpload } from "@/components/DocumentUpload";
@@ -58,6 +58,7 @@ export default async function Home() {
           {[
             ["BD", "Benefits Discovery", "#benefits-discovery"],
             ["ES", "Eligibility Screening", "#eligibility-screening"],
+            ["NV", "Non-VA Benefits", "#non-va-benefits"],
             ["CP", "Claims Preparation", "#claims-preparation"],
             ["DO", "Document Organization", "#document-organization"],
             ["BE", "Benefit Education", "#benefit-education"],
@@ -186,6 +187,10 @@ export default async function Home() {
             <div className="intakeSignal">{documents?.length || 0} uploaded</div>
           </div>
           <DocumentUpload userId={user.id} />
+        </section>
+
+        <section id="non-va-benefits" className="anchorSection">
+          <NonVaBenefits profile={profile} />
         </section>
 
         <section id="claims-preparation" className="anchorSection">
