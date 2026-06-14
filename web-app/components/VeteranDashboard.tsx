@@ -386,3 +386,341 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
     </div>
   );
 }
+
+// ─── Knowledge Graph Lab ──────────────────────────────────────────────────────
+
+const graphDocuments = [
+  { id: 1, name: "benefit_summary.pdf", tags: ["VA Decision"], verified: true, linkedConditions: [], linkedEvents: ["VA rating - 90% SC"], notes: "90% combined, $2,362.30/mo, not P&T." },
+  { id: 2, name: "certificate_of_eligibility_home_loan.pdf", tags: ["VA Decision", "Housing"], verified: true, linkedConditions: [], linkedEvents: ["VA home loan COE"], notes: "Chapter 37 eligible, funding-fee exempt, $87,575 prior entitlement charged." },
+  { id: 3, name: "service_verification.pdf", tags: ["Service"], verified: true, linkedConditions: [], linkedEvents: ["Air Force service"], notes: "Confirms honorable Air Force service Aug. 20, 1985 to May 24, 1988." },
+  { id: 4, name: "proof_of_service.pdf", tags: ["Service"], verified: true, linkedConditions: [], linkedEvents: ["Air Force service"], notes: "Proof of honorable service document." },
+  { id: 5, name: "foreign_medical_program.pdf", tags: ["Medical", "VA Decision"], verified: true, linkedConditions: ["Sleep apnea", "Depression", "Lumbar spine", "Radiculopathy", "Tinnitus", "Knee condition", "Skin condition"], linkedEvents: ["VA rating - 90% SC"], notes: "FMP authorized and lists VA-adjudicated service-connected conditions." },
+  { id: 6, name: "civil_service.pdf", tags: ["Employment"], verified: true, linkedConditions: [], linkedEvents: ["Federal preference"], notes: "30%+ SC preference confirmed for federal hiring lane." },
+  { id: 7, name: "Needed: SSDI award/BPQY", tags: ["SSDI", "Missing"], verified: false, linkedConditions: ["Sleep apnea", "Depression", "Lumbar spine", "Radiculopathy"], linkedEvents: ["Employment impact"], notes: "Needed to confirm the SSA-recognized medical basis." },
+  { id: 8, name: "Needed: aortic surgery records", tags: ["Surgery", "Missing"], verified: false, linkedConditions: ["Aortic / vascular residuals"], linkedEvents: ["Major aortic surgery", "Dialysis episode", "Residual numbness"], notes: "Needed for operative chronology, follow-up care, scars, dialysis, and residual symptoms." },
+];
+
+const graphConditions = [
+  { id: 1, name: "Sleep apnea", category: "Respiratory", vaSC: true, ssdi: true, evidenceItems: [{ label: "Diagnosis documented", done: true }, { label: "CPAP prescription on file", done: true }, { label: "Recent treatment records within 12 months", done: false }, { label: "Current symptom statement", done: false }, { label: "Functional impact documented", done: false }], notes: "CPAP prescribed. Need current functional impact when sleep is disrupted.", whatChangedPrompts: ["CPAP tolerance or failures", "Daytime fatigue", "Work or concentration impact"] },
+  { id: 2, name: "Depression", category: "Mental health", vaSC: true, ssdi: true, evidenceItems: [{ label: "Diagnosis documented", done: true }, { label: "Treatment history", done: false }, { label: "Secondary nexus to pain or sleep documented", done: false }, { label: "Current symptom statement", done: false }, { label: "Functional impact on daily life", done: false }], notes: "Potentially connected to chronic pain and sleep disruption; needs provider records.", whatChangedPrompts: ["Mood changes", "Sleep and pain interaction", "Social or work impairment"] },
+  { id: 3, name: "Lumbar spine", category: "Musculoskeletal", vaSC: true, ssdi: true, evidenceItems: [{ label: "Original diagnosis on file", done: true }, { label: "Recent imaging", done: false }, { label: "Range of motion documented", done: false }, { label: "Current treatment records", done: false }, { label: "Functional limitation statement", done: false }], notes: "Needs recent imaging, range-of-motion evidence, and daily limitation details.", whatChangedPrompts: ["Mobility loss", "Flare frequency", "Sitting, standing, lifting limits"] },
+  { id: 4, name: "Radiculopathy", category: "Neurological", vaSC: true, ssdi: true, evidenceItems: [{ label: "Diagnosis documented", done: true }, { label: "Nexus to lumbar spine documented", done: false }, { label: "Nerve study or neurological exam", done: false }, { label: "Symptom frequency and severity statement", done: false }], notes: "Likely tied to lumbar spine, but severity and laterality need stronger documentation.", whatChangedPrompts: ["Numbness pattern", "Pain radiation", "Falls, weakness, or foot symptoms"] },
+  { id: 5, name: "Aortic / vascular residuals", category: "Cardiovascular", vaSC: false, ssdi: false, evidenceItems: [{ label: "Operative records for aortic surgery", done: false }, { label: "Dialysis episode records", done: false }, { label: "Post-surgical follow-up records", done: false }, { label: "Residual numbness documented by provider", done: false }, { label: "Scar documentation", done: false }, { label: "Nexus theory reviewed by accredited help", done: false }], notes: "Major unexplored lane. Needs records before anyone can responsibly assess a theory.", whatChangedPrompts: ["Surgery recovery", "Dialysis duration", "Residual numbness, scars, monitoring"] },
+];
+
+const graphEvents = [
+  { year: "1985-1988", label: "Air Force service", verified: true },
+  { year: "Apr 2026", label: "VA rating - 90% SC", verified: true },
+  { year: "Unknown", label: "Sleep apnea onset / CPAP", verified: false },
+  { year: "~2007", label: "Aortic event - initial diagnosis", verified: false },
+  { year: "2025", label: "Major aortic surgery", verified: false },
+  { year: "2025", label: "Dialysis episode", verified: false },
+  { year: "2025-now", label: "Residual numbness and monitoring", verified: false },
+  { year: "Mar 2026", label: "VA home loan COE", verified: true },
+];
+
+function conditionReadiness(c: typeof graphConditions[0]) {
+  const done = c.evidenceItems.filter((i) => i.done).length;
+  return Math.round((done / c.evidenceItems.length) * 100);
+}
+
+function graphOverallReadiness() {
+  const total = graphConditions.reduce((sum, c) => sum + conditionReadiness(c), 0);
+  return Math.round(total / graphConditions.length);
+}
+
+function readinessTone(score: number) {
+  if (score >= 80) return "#267a56";
+  if (score >= 50) return "#b98922";
+  return "#b6504c";
+}
+
+export function KnowledgeGraphLab() {
+  const [activeTab, setActiveTab] = useState("links");
+  const [activeConditionId, setActiveConditionId] = useState(1);
+  const [ssdiSelected, setSsdiSelected] = useState(["Sleep apnea", "Depression", "Lumbar spine", "Radiculopathy"]);
+  const overallScore = graphOverallReadiness();
+  const activeCondition = graphConditions.find((c) => c.id === activeConditionId) || graphConditions[0];
+
+  const tabs = [
+    { id: "links", label: "Document links" },
+    { id: "score", label: "Evidence score" },
+    { id: "changed", label: "What changed?" },
+    { id: "packet", label: "Meeting packet" },
+    { id: "mapper", label: "SSDI mapper" },
+  ];
+
+  return (
+    <div style={{ background: "#fff", border: "1px solid #d9dfd5", borderRadius: 10, padding: "18px 20px", marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Veteran Knowledge Graph Lab</h2>
+          <p style={{ margin: "3px 0 0", color: "#667184", fontSize: 12 }}>Document links, condition evidence readiness, what changed since last rating, meeting packet, and SSDI mapping.</p>
+        </div>
+        <span style={{ fontSize: 20, fontWeight: 900, color: readinessTone(overallScore), textAlign: "center" as const }}>
+          {overallScore}%<div style={{ fontSize: 10, fontWeight: 400, color: "#667184" }}>evidence</div>
+        </span>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" as const }}>
+        {tabs.map((tab) => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ padding: "6px 12px", borderRadius: 6, border: `1.5px solid ${activeTab === tab.id ? "#267a56" : "#d9dfd5"}`, background: activeTab === tab.id ? "#dff3e7" : "#fff", color: activeTab === tab.id ? "#267a56" : "#667184", fontWeight: activeTab === tab.id ? 700 : 400, fontSize: 12, cursor: "pointer" }}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Document Links */}
+      {activeTab === "links" && (
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+            {[{ label: "Total documents", value: graphDocuments.length }, { label: "Verified", value: graphDocuments.filter((d) => d.verified).length }, { label: "Still needed", value: graphDocuments.filter((d) => !d.verified).length }, { label: "Unlinked", value: graphDocuments.filter((d) => d.linkedConditions.length === 0 && d.linkedEvents.length === 0).length }].map((stat) => (
+              <div key={stat.label} style={{ padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 7, textAlign: "center" as const }}>
+                <strong style={{ fontSize: 22, fontWeight: 900 }}>{stat.value}</strong>
+                <div style={{ fontSize: 11, color: "#667184" }}>{stat.label}</div>
+              </div>
+            ))}
+          </div>
+          {graphDocuments.map((doc) => (
+            <div key={doc.id} style={{ padding: "10px 12px", border: `1px solid ${doc.verified ? "#d9dfd5" : "#b6504c44"}`, borderRadius: 7, marginBottom: 6, background: doc.verified ? "#fff" : "#fff8f8" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <strong style={{ fontSize: 13 }}>{doc.name}</strong>
+                <span style={{ fontSize: 11, fontWeight: 700, color: doc.verified ? "#267a56" : "#b6504c" }}>{doc.verified ? "Verified" : "Needed"}</span>
+              </div>
+              <p style={{ margin: "3px 0 4px", fontSize: 12, color: "#667184" }}>{doc.notes}</p>
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" as const }}>
+                {doc.tags.map((t) => <span key={t} style={{ fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "#f4f6f3", color: "#267a56", fontWeight: 600 }}>{t}</span>)}
+              </div>
+              {doc.linkedConditions.length > 0 && <p style={{ margin: "3px 0 0", fontSize: 11, color: "#667184" }}><b>Conditions:</b> {doc.linkedConditions.join(", ")}</p>}
+              <p style={{ margin: "2px 0 0", fontSize: 11, color: "#667184" }}><b>Events:</b> {doc.linkedEvents.length ? doc.linkedEvents.join(", ") : "None yet"}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Evidence Score */}
+      {activeTab === "score" && (
+        <div>
+          <div style={{ padding: "12px 14px", borderRadius: 8, background: readinessTone(overallScore) + "11", border: `1px solid ${readinessTone(overallScore)}44`, marginBottom: 12 }}>
+            <span style={{ fontSize: 12, color: "#667184" }}>Overall evidence completeness</span>
+            <div style={{ fontSize: 36, fontWeight: 900, color: readinessTone(overallScore) }}>{overallScore}%</div>
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#667184" }}>Focus on red conditions first. Each checklist item turns a vague concern into a document or appointment request.</p>
+          </div>
+          {[...graphConditions].sort((a, b) => conditionReadiness(a) - conditionReadiness(b)).map((condition) => {
+            const score = conditionReadiness(condition);
+            const done = condition.evidenceItems.filter((i) => i.done).length;
+            return (
+              <div key={condition.id} style={{ padding: "12px 14px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <div><strong style={{ fontSize: 14 }}>{condition.name}</strong><span style={{ fontSize: 11, color: "#667184", marginLeft: 8 }}>{condition.category}</span></div>
+                  <strong style={{ color: readinessTone(score), fontSize: 16 }}>{score}%</strong>
+                </div>
+                <div style={{ height: 6, background: "#f4f6f3", borderRadius: 3, marginBottom: 6 }}>
+                  <div style={{ height: 6, width: `${score}%`, background: readinessTone(score), borderRadius: 3 }} />
+                </div>
+                <p style={{ margin: "0 0 6px", fontSize: 11, color: "#667184" }}>{done}/{condition.evidenceItems.length} evidence items present</p>
+                {condition.evidenceItems.map((item) => (
+                  <div key={item.label} style={{ fontSize: 12, color: item.done ? "#267a56" : "#b6504c", marginBottom: 2 }}>
+                    {item.done ? "✓" : "✗"} {item.label}
+                  </div>
+                ))}
+                <p style={{ margin: "6px 0 0", fontSize: 11, color: "#667184" }}>{condition.notes}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* What Changed */}
+      {activeTab === "changed" && (
+        <div>
+          <div style={{ padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 12 }}>
+            <strong style={{ fontSize: 13 }}>The question a VSO will ask</strong>
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#667184" }}>"What is different today than when VA last rated this condition?" This module helps turn that answer into a focused evidence request.</p>
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 12 }}>
+            {graphConditions.map((c) => (
+              <button key={c.id} onClick={() => setActiveConditionId(c.id)} style={{ padding: "5px 10px", borderRadius: 6, border: `1.5px solid ${activeConditionId === c.id ? "#267a56" : "#d9dfd5"}`, background: activeConditionId === c.id ? "#dff3e7" : "#fff", color: activeConditionId === c.id ? "#267a56" : "#667184", fontWeight: activeConditionId === c.id ? 700 : 400, fontSize: 12, cursor: "pointer" }}>
+                {c.name}
+              </button>
+            ))}
+          </div>
+          <div style={{ padding: "12px 14px", border: "1px solid #d9dfd5", borderRadius: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div><strong style={{ fontSize: 14 }}>{activeCondition.name}</strong><span style={{ fontSize: 11, color: "#667184", marginLeft: 8 }}>{activeCondition.category} · Evidence {conditionReadiness(activeCondition)}%</span></div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: activeCondition.vaSC ? "#267a56" : "#b6504c" }}>{activeCondition.vaSC ? "VA SC" : "Not SC"}</span>
+            </div>
+            <label style={{ display: "block" }}>
+              <span style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4 }}>What changed since the last rating?</span>
+              <textarea placeholder="Symptoms, frequency, severity, new treatment, new limitations, new tests, hospitalizations, or daily-life impact." style={{ width: "100%", minHeight: 80, padding: "8px 10px", borderRadius: 7, border: "1px solid #d9dfd5", fontSize: 13, resize: "vertical" as const, boxSizing: "border-box" as const }} />
+            </label>
+            <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" as const }}>
+              {activeCondition.whatChangedPrompts.map((p) => <span key={p} style={{ fontSize: 11, padding: "2px 7px", borderRadius: 4, background: "#f4f6f3", color: "#667184" }}>{p}</span>)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Meeting Packet */}
+      {activeTab === "packet" && (
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+            <div style={{ padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 7 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#267a56", textTransform: "uppercase" as const }}>Verified story</span>
+              {graphEvents.filter((e) => e.verified).map((e) => <p key={e.year} style={{ margin: "4px 0 0", fontSize: 12 }}><b>{e.year}</b> {e.label}</p>)}
+            </div>
+            <div style={{ padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 7 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#b6504c", textTransform: "uppercase" as const }}>Evidence gaps</span>
+              {graphDocuments.filter((d) => !d.verified).map((d) => <p key={d.id} style={{ margin: "4px 0 0", fontSize: 12 }}><b>{d.name}</b> — {d.notes}</p>)}
+            </div>
+          </div>
+          <div style={{ padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 10 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#267a56", textTransform: "uppercase" as const }}>VSO-ready questions</span>
+            <ol style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+              {["For dual-confirmed conditions (Sleep apnea, Depression, Lumbar spine, Radiculopathy), what individual ratings are currently assigned and which are evidence-ready for schedular review?", "For evidence-gap conditions, what specific records should be gathered first?", "How should aortic surgery, dialysis episode, residual numbness, scars, and monitoring be developed before any claim theory is considered?", "Given the preference for schedular review, what path preserves future consulting or employment options?"].map((q, i) => <li key={i} style={{ fontSize: 12, color: "#667184", marginBottom: 4 }}>{q}</li>)}
+            </ol>
+          </div>
+          <p style={{ fontSize: 11, color: "#b98922", textAlign: "center" as const }}>Preparation tool only. Review with an accredited VSO, claims attorney, or qualified representative before filing.</p>
+        </div>
+      )}
+
+      {/* SSDI Mapper */}
+      {activeTab === "mapper" && (
+        <div>
+          <div style={{ padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 12 }}>
+            <strong style={{ fontSize: 13 }}>{ssdiSelected.length >= 3 ? "Strong SSDI-to-SC overlap" : ssdiSelected.length ? "Partial overlap" : "No SSDI conditions selected"}</strong>
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#667184" }}>Your FMP authorization lists VA-adjudicated conditions. Your SSDI file lists what SSA recognized as disabling. Where they overlap, the app can build better questions for schedular review.</p>
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 12 }}>
+            {graphConditions.map((c) => (
+              <button key={c.id} onClick={() => setSsdiSelected((prev) => prev.includes(c.name) ? prev.filter((n) => n !== c.name) : [...prev, c.name])} style={{ padding: "6px 10px", borderRadius: 6, border: `1.5px solid ${ssdiSelected.includes(c.name) ? "#267a56" : "#d9dfd5"}`, background: ssdiSelected.includes(c.name) ? "#dff3e7" : "#fff", color: ssdiSelected.includes(c.name) ? "#267a56" : "#667184", fontWeight: ssdiSelected.includes(c.name) ? 700 : 400, fontSize: 12, cursor: "pointer" }}>
+                {c.name}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 7 }}>
+              <h3 style={{ margin: "0 0 6px", fontSize: 13 }}>Matched conditions</h3>
+              {graphConditions.filter((c) => ssdiSelected.includes(c.name)).map((c) => <p key={c.id} style={{ margin: "0 0 4px", fontSize: 12 }}>{c.name} <span style={{ color: "#267a56", fontSize: 11 }}>VA-adjudicated + SSA-recognized</span></p>)}
+              {ssdiSelected.length === 0 && <p style={{ fontSize: 12, color: "#667184" }}>None selected yet.</p>}
+            </div>
+            <div style={{ padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 7 }}>
+              <h3 style={{ margin: "0 0 6px", fontSize: 13 }}>Not matched yet</h3>
+              {graphConditions.filter((c) => !ssdiSelected.includes(c.name)).map((c) => <p key={c.id} style={{ margin: "0 0 4px", fontSize: 12 }}>{c.name} <span style={{ color: "#667184", fontSize: 11 }}>Research evidence lane</span></p>)}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Claim Review Coach ───────────────────────────────────────────────────────
+
+export function ClaimReviewCoach() {
+  const [claimStrength] = useState(62);
+
+  return (
+    <div style={{ background: "#fff", border: "1px solid #d9dfd5", borderRadius: 10, padding: "18px 20px", marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Claim Review Coach</h2>
+          <p style={{ margin: "3px 0 0", color: "#667184", fontSize: 12 }}>Internal research assistant for potential 90-to-100 paths. Surfaces review areas, evidence gaps, and VSO-ready questions without making entitlement claims.</p>
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, border: "1px solid #b98922", color: "#b98922", whiteSpace: "nowrap" as const }}>Review with accredited help before filing</span>
+      </div>
+
+      {/* Phase 1 */}
+      <div style={{ marginBottom: 10 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: "#267a56", textTransform: "uppercase" as const }}>Phase 1 — Veteran Profile</span>
+        <div style={{ display: "grid", gap: 5, marginTop: 6 }}>
+          {[{ label: "AFSC/MOS", value: "27132 – APR Operations Resources / Flight Ops Specialist" }, { label: "Surgeries", value: "Aortic aneurysm history; major aortic surgery 2025; dialysis episode 2025" }, { label: "Medications", value: "Sacubitril/Valsartan, Metoprolol, Rivaroxaban, Amlodipine, Empagliflozin, Rosuvastatin, Famotidine" }, { label: "Dependents", value: "None" }].map((item) => (
+            <div key={item.label} style={{ padding: "8px 10px", border: "1px solid #d9dfd5", borderRadius: 7, display: "flex", gap: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#267a56", minWidth: 100 }}>{item.label}</span>
+              <span style={{ fontSize: 12, color: "#172132" }}>{item.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Phase 2 */}
+      <div style={{ marginBottom: 10 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: "#267a56", textTransform: "uppercase" as const }}>Phase 2 — Opportunity Scanner</span>
+        <div style={{ display: "grid", gap: 5, marginTop: 6 }}>
+          {[{ status: "Review", title: "Schedular 90-to-100 path", text: "Preserves future work and consulting options. Needs individual ratings, worsening evidence, and secondary/residual theories." }, { status: "Research", title: "Secondary conditions", text: "Use spine, radiculopathy, sleep apnea, depression, knee, tinnitus, and skin conditions as the starting map." }, { status: "Investigate", title: "Post-surgical residuals", text: "Aortic surgery, aneurysm history, dialysis episode, numbness, scars, and follow-up care should be organized for VSO review." }].map((item) => (
+            <div key={item.title} style={{ padding: "8px 10px", border: "1px solid #d9dfd5", borderRadius: 7 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: statusColor(item.status), textTransform: "uppercase" as const }}>{item.status}</span>
+              <strong style={{ display: "block", fontSize: 13 }}>{item.title}</strong>
+              <p style={{ margin: "2px 0 0", fontSize: 11, color: "#667184" }}>{item.text}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Phase 3 */}
+      <div style={{ marginBottom: 10 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: "#267a56", textTransform: "uppercase" as const }}>Phase 3 — Evidence Readiness</span>
+        <div style={{ display: "grid", gap: 5, marginTop: 6 }}>
+          {[{ label: "Ready", title: "Service, rating, COE, FMP, civil preference", text: "Core documents are captured and can support benefit verification." }, { label: "Needs evidence", title: "Schedular increase map", text: "Need individual ratings, last exam dates, worsening evidence, and functional impact statements." }, { label: "Insufficient", title: "Surgery residual claim theory", text: "Need medical records, diagnosis links, chronology, nexus theory, and accredited review." }].map((item) => (
+            <div key={item.title} style={{ padding: "8px 10px", border: "1px solid #d9dfd5", borderRadius: 7 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: statusColor(item.label), textTransform: "uppercase" as const }}>{item.label}</span>
+              <strong style={{ display: "block", fontSize: 13 }}>{item.title}</strong>
+              <p style={{ margin: "2px 0 0", fontSize: 11, color: "#667184" }}>{item.text}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Phase 4 */}
+      <div style={{ marginBottom: 10 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: "#267a56", textTransform: "uppercase" as const }}>Phase 4 — Claim Strength</span>
+        <div style={{ padding: "12px 14px", border: "1px solid #d9dfd5", borderRadius: 7, marginTop: 6, textAlign: "center" as const }}>
+          <div style={{ fontSize: 48, fontWeight: 900 }}>{claimStrength}<span style={{ fontSize: 16, fontWeight: 400, color: "#667184" }}>/100</span></div>
+          <div style={{ fontSize: 12, color: "#667184", marginBottom: 6 }}>support level</div>
+          <div style={{ height: 8, background: "#f4f6f3", borderRadius: 4 }}>
+            <div style={{ height: 8, width: `${claimStrength}%`, background: "#b98922", borderRadius: 4 }} />
+          </div>
+          <p style={{ margin: "8px 0 0", fontSize: 12, color: "#667184" }}>Improves with individual ratings, SSDI basis, specialist notes, functional impact, and nexus clarification.</p>
+        </div>
+      </div>
+
+      {/* Phase 5 */}
+      <div>
+        <span style={{ fontSize: 10, fontWeight: 700, color: "#267a56", textTransform: "uppercase" as const }}>Phase 5 — Personal Statement Assistant</span>
+        <div style={{ padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 7, marginTop: 6 }}>
+          <p style={{ margin: "0 0 8px", fontSize: 12, color: "#667184" }}>Organize chronology, symptoms, treatment history, work impact, flare-ups, and daily limitations. No invented facts.</p>
+          <button style={{ padding: "7px 14px", borderRadius: 6, border: "1px solid #d9dfd5", background: "#f4f6f3", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Build outline →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Document Translator ──────────────────────────────────────────────────────
+
+export function DocumentTranslator() {
+  const docs = [
+    { name: "Benefit summary", says: "90% combined, monthly award, not P&T.", matters: "Anchors current VA status and separates verified benefits from conditional P&T-only benefits." },
+    { name: "FMP authorization", says: "Lists VA-adjudicated service-connected conditions.", matters: "Creates the condition map for health care abroad, secondary-condition research, and schedular evidence review." },
+    { name: "Home-loan COE", says: "VA loan eligible, funding-fee exempt, prior entitlement charged.", matters: "Turns home buying from a vague goal into entitlement restoration and remaining-entitlement questions." },
+    { name: "Civil-service letter", says: "Honorable separation and 30%+ service-connected compensation.", matters: "Supports federal hiring preference and confirms a benefit lane outside claims." },
+    { name: "DD-214", says: "Air Force, E-3, honorable discharge Aug 1985 – May 1988, AFSC 27132.", matters: "Primary service verification for all VA benefits; establishes eligibility foundation." },
+    { name: "SSA Benefit Verification", says: "SSDI $2,994/mo, disabled June 20, 2020, Medicare enrolled Dec 2022.", matters: "Confirms SSA disability basis, onset date, and Medicare coverage — critical for SSDI-to-SC mapping." },
+    { name: "Medication list", says: "Heart, blood pressure, blood thinner, diabetes, cholesterol, eye, and GI medications from Orlando VAMC.", matters: "Documents active treatment and functional burden; supports worsening and secondary condition evidence." },
+  ];
+
+  return (
+    <div style={{ background: "#fff", border: "1px solid #d9dfd5", borderRadius: 10, padding: "18px 20px", marginBottom: 12 }}>
+      <h2 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 800 }}>Document Translator</h2>
+      <p style={{ margin: "0 0 12px", color: "#667184", fontSize: 12 }}>What each document says and why it matters to your case.</p>
+      {docs.map((doc) => (
+        <div key={doc.name} style={{ padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 7 }}>
+          <strong style={{ fontSize: 14, color: "#172132" }}>{doc.name}</strong>
+          <p style={{ margin: "4px 0 2px", fontSize: 12 }}><span style={{ fontWeight: 700 }}>Says:</span> {doc.says}</p>
+          <p style={{ margin: 0, fontSize: 12, color: "#267a56" }}><span style={{ fontWeight: 700 }}>Why it matters:</span> {doc.matters}</p>
+        </div>
+      ))}
+    </div>
+  );
+}

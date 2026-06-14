@@ -1,6 +1,6 @@
 import { signOut } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
-import { VeteranDashboard } from "@/components/VeteranDashboard";
+import { VeteranDashboard, KnowledgeGraphLab, ClaimReviewCoach, DocumentTranslator } from "@/components/VeteranDashboard";
 import { AuthButtons } from "@/components/AuthButtons";
 import { ProfileForm } from "@/components/ProfileForm";
 import { DocumentUpload } from "@/components/DocumentUpload";
@@ -48,6 +48,7 @@ export default async function Home() {
           </div>
         </header>
 
+        {/* Profile + Voice */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
           <div style={{ background: "#fff", border: "1px solid #d9dfd5", borderRadius: 10, padding: "18px 20px" }}>
             <h2 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 800 }}>Veteran Profile</h2>
@@ -71,18 +72,30 @@ export default async function Home() {
           </div>
         </div>
 
+        {/* Document Uploads */}
         <div style={{ background: "#fff", border: "1px solid #d9dfd5", borderRadius: 10, padding: "18px 20px", marginBottom: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Missing Document Uploads</h2>
-              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#667184" }}>Files upload to your private Supabase Storage bucket.</p>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Evidence Uploads</h2>
+              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#667184" }}>Files upload to your private Supabase Storage bucket. Each upload flips the Evidence Inventory to Complete.</p>
             </div>
             <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 8px", borderRadius: 6, border: "1px solid #d9dfd5", color: "#667184" }}>{documents?.length || 0} uploaded</span>
           </div>
           <DocumentUpload userId={user.id} />
         </div>
 
+        {/* Full dashboard */}
         <VeteranDashboard profile={profile} userEmail={user.email || ""} documents={documents || []} />
+
+        {/* Document Translator */}
+        <DocumentTranslator />
+
+        {/* Knowledge Graph Lab */}
+        <KnowledgeGraphLab />
+
+        {/* Claim Review Coach */}
+        <ClaimReviewCoach />
+
       </div>
     </main>
   );
