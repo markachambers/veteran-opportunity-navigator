@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
+import { deleteDocument, deleteDuplicateDocuments } from "@/app/actions";
 
 const categories = [
   { name: "Federal", initials: "FE", color: "green", count: 10, value: "Confirmed", items: ["30%+ civil-service preference proof", "No-cost VA health care and prescriptions", "VR&E eligibility screen"], source: "Civil service letter / VA matrix" },
@@ -32,6 +34,10 @@ const evidenceConfig = [
   { category: "Employment Timeline", docCategory: "employment", note: "Needed to understand work limits and timeline context." },
   { category: "Personal Statement Timeline", docCategory: "personal-statement", note: "Needed to explain symptoms, changes, and daily limitations." },
 ];
+
+const documentCategoryLabels: Record<string, string> = Object.fromEntries(
+  evidenceConfig.map((item) => [item.docCategory, item.category])
+);
 
 const opportunityScores = [
   { area: "State Benefits", opportunity: "High", note: "Florida benefits and county-level savings should be investigated." },
@@ -111,7 +117,7 @@ function Pill({ label }: { label: string }) {
   );
 }
 
-function Card({ title, sub, children, badge }: { title: string; sub?: string; children: React.ReactNode; badge?: string }) {
+function Card({ title, sub, children, badge }: { title: string; sub?: string; children: ReactNode; badge?: string }) {
   return (
     <div style={{ background: "#fff", border: "1px solid #d9dfd5", borderRadius: 10, padding: "18px 20px", marginBottom: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
@@ -126,8 +132,40 @@ function Card({ title, sub, children, badge }: { title: string; sub?: string; ch
   );
 }
 
-type Doc = { id: string; category: string; file_name: string; status: string; };
+type Doc = { id: string; category: string; file_name: string; status: string; file_path?: string; created_at?: string; };
 type Profile = { display_name?: string | null; branch?: string | null; state?: string | null; current_rating?: string | null; work_status?: string | null; dependent_status?: string | null; } | null;
+
+function documentLabel(category: string) {
+  return documentCategoryLabels[category] || category.replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function documentKey(doc: Doc) {
+  return `${doc.category}::${doc.file_name.trim().toLowerCase()}`;
+}
+
+function dedupeDocuments(documents: Doc[]) {
+  const groups = new Map<string, Doc[]>();
+  documents.forEach((doc) => {
+    const key = documentKey(doc);
+    const group = groups.get(key) || [];
+    group.push(doc);
+    groups.set(key, group);
+  });
+
+  return Array.from(groups.values()).map((group) => {
+    const sorted = [...group].sort((a, b) => {
+      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return bTime - aTime;
+    });
+
+    return {
+      primary: sorted[0],
+      duplicates: sorted.slice(1),
+      count: sorted.length,
+    };
+  });
+}
 
 export function VeteranDashboard({ profile, userEmail, documents = [] }: { profile: Profile; userEmail: string; documents?: Doc[] }) {
   const [selectedCat, setSelectedCat] = useState("Schedular Review");
@@ -139,6 +177,7 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
   const state = profile?.state || "Florida";
   const rating = profile?.current_rating || "90%";
   const cat = categories.find((c) => c.name === selectedCat) || categories[0];
+  const vaultGroups = dedupeDocuments(documents);
 
   // Build live evidence inventory from real uploaded documents
   const uploadedCategories = new Set(documents.map((d) => d.category));
@@ -215,14 +254,35 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
           </div>
         ))}
         <h3 style={{ margin: "12px 0 8px", fontSize: 14 }}>Document Vault</h3>
-        {documents.length > 0 ? (
-          documents.map((doc) => (
+        {vaultGroups.length > 0 ? (
+          vaultGroups.map(({ primary: doc, duplicates, count }) => (
             <div key={doc.id} style={{ padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 5 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <strong style={{ fontSize: 13 }}>{doc.file_name}</strong>
-                <Pill label="Uploaded" />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                <div style={{ minWidth: 0 }}>
+                  <strong style={{ display: "block", fontSize: 13, overflowWrap: "anywhere" as const }}>{doc.file_name}</strong>
+                  <small style={{ color: "#667184", fontSize: 11 }}>Category: {documentLabel(doc.category)}</small>
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" as const, justifyContent: "flex-end" }}>
+                  {count > 1 ? <Pill label={`${count} copies`} /> : <Pill label="Uploaded" />}
+                  <form action={deleteDocument}>
+                    <input type="hidden" name="document_id" value={doc.id} />
+                    <button type="submit" style={{ minHeight: 24, border: "1px solid #d9dfd5", borderRadius: 6, background: "#fff", color: "#b6504c", fontSize: 11, fontWeight: 700, padding: "0 8px" }}>
+                      Delete
+                    </button>
+                  </form>
+                </div>
               </div>
-              <small style={{ color: "#667184", fontSize: 11 }}>Category: {doc.category}</small>
+              {duplicates.length > 0 ? (
+                <form action={deleteDuplicateDocuments} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 7, paddingTop: 7, borderTop: "1px solid #edf0ea" }}>
+                  <small style={{ color: "#667184", fontSize: 11 }}>Showing newest upload. {duplicates.length} older duplicate {duplicates.length === 1 ? "copy is" : "copies are"} hidden.</small>
+                  {duplicates.map((duplicate) => (
+                    <input key={duplicate.id} type="hidden" name="duplicate_document_id" value={duplicate.id} />
+                  ))}
+                  <button type="submit" style={{ minHeight: 26, border: "1px solid #b98922", borderRadius: 6, background: "#fbefd0", color: "#8a6319", fontSize: 11, fontWeight: 800, padding: "0 9px", whiteSpace: "nowrap" as const }}>
+                    Remove duplicates
+                  </button>
+                </form>
+              ) : null}
             </div>
           ))
         ) : (
@@ -305,9 +365,11 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
 
       {/* Readiness Score */}
       <Card title="Readiness Score" sub="Service, preference, FMP, benefit-summary, and home-loan documents are present. Schedular evidence and exact rating breakdown remain the main gaps.">
-        <div style={{ textAlign: "center" as const, marginBottom: 14 }}>
-          <div style={{ fontSize: 64, fontWeight: 900, lineHeight: 1 }}>94</div>
-          <div style={{ fontSize: 12, color: "#667184" }}>ready</div>
+        <div style={{ textAlign: "center" as const, marginBottom: 14, minWidth: 120 }}>
+          <div style={{ display: "inline-flex", flexDirection: "column" as const, alignItems: "center", whiteSpace: "nowrap" as const }}>
+            <div style={{ fontSize: 64, fontWeight: 900, lineHeight: 0.95, whiteSpace: "nowrap" as const }}>94</div>
+            <div style={{ fontSize: 12, color: "#667184", whiteSpace: "nowrap" as const }}>ready</div>
+          </div>
         </div>
         {[{ label: "Known likely", value: 18 }, { label: "High-priority review", value: 4 }, { label: "Needs answers", value: 2 }].map((item) => (
           <div key={item.label} style={{ display: "flex", justifyContent: "space-between", padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 5 }}>

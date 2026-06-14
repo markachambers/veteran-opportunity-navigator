@@ -13,11 +13,19 @@ export default async function Home() {
 
   if (!user) {
     return (
-      <main style={{ minHeight: "100vh", padding: 28, background: "radial-gradient(circle at 15% 10%, rgba(45,121,86,0.22), transparent 30%), linear-gradient(135deg, #071421 0%, #10253a 48%, #071421 100%)", fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif" }}>
-        <div style={{ width: "min(100%, 520px)", margin: "12vh auto 0", padding: 28, border: "1px solid #d9dfd5", borderRadius: 10, background: "#fbfaf6", boxShadow: "0 22px 70px rgba(7,17,28,0.16)" }}>
-          <h1 style={{ margin: "0 0 8px", fontSize: 36, lineHeight: 1.05, color: "#172132" }}>Sign in to your veteran workspace.</h1>
-          <p style={{ color: "#667184", lineHeight: 1.55, marginBottom: 20 }}>Each veteran gets their own private profile, uploads, voice notes, evidence checklist, and meeting packet.</p>
+      <main className="authGate">
+        <div className="authPanel">
+          <div className="brand authBrand">
+            <div className="brandMark" aria-hidden="true">✓</div>
+            <div>
+              <strong>Veteran Journey</strong>
+              <span>Private workspace</span>
+            </div>
+          </div>
+          <h1>Sign in to your veteran workspace.</h1>
+          <p>Each veteran gets their own private profile, uploads, voice notes, evidence checklist, and meeting packet.</p>
           <AuthButtons />
+          <small>Production sign-in is handled by Supabase Auth. Your documents are scoped to your authenticated user account.</small>
         </div>
       </main>
     );
@@ -29,73 +37,161 @@ export default async function Home() {
     supabase.from("voice_notes").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
   ]);
 
+  const displayName = profile?.display_name || user.email || "Veteran";
+  const branch = profile?.branch || "Air Force";
+  const state = profile?.state || "Florida";
+  const rating = profile?.current_rating || "90%";
+  const workStatus = profile?.work_status || "Unemployed + SSDI";
+  const dependentStatus = profile?.dependent_status || "None";
+
   return (
-    <main style={{ minHeight: "100vh", padding: 28, background: "radial-gradient(circle at 15% 10%, rgba(45,121,86,0.22), transparent 30%), linear-gradient(135deg, #071421 0%, #10253a 48%, #071421 100%)", fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif" }}>
-      <div style={{ maxWidth: 860, margin: "0 auto" }}>
-        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 18, color: "#fff" }}>
+    <main className="appShell">
+      <aside className="sidebar" aria-label="Primary">
+        <div className="brand">
+          <div className="brandMark" aria-hidden="true">✓</div>
           <div>
-            <h1 style={{ margin: 0, fontSize: "clamp(28px,4vw,48px)", lineHeight: 1, fontWeight: 900 }}>Your Veteran Journey Navigator.</h1>
-            <p style={{ margin: "8px 0 0", color: "#c6d3dc", lineHeight: 1.5 }}>Every room entered, every room not yet explored, and the evidence needed to open the next door.</p>
+            <strong>Veteran Journey</strong>
+            <span>Navigator</span>
           </div>
-          <div style={{ minWidth: 200, padding: 12, borderRadius: 8, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.09)" }}>
-            <span style={{ display: "block", color: "#c6d3dc", fontSize: 12 }}>Signed in</span>
-            <strong style={{ display: "block", color: "#fff", fontSize: 13 }}>{profile?.display_name || user.email}</strong>
-            <form action={signOut}>
-              <button type="submit" style={{ width: "100%", marginTop: 10, minHeight: 34, borderRadius: 7, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", fontWeight: 800, cursor: "pointer" }}>
-                Sign out
-              </button>
-            </form>
+        </div>
+        <nav className="navList">
+          {[
+            ["BD", "Benefits Discovery"],
+            ["ES", "Eligibility Screening"],
+            ["CP", "Claims Preparation"],
+            ["DO", "Document Organization"],
+            ["BE", "Benefit Education"],
+            ["RD", "Resource Directory"],
+            ["RN", "Referral Network"]
+          ].map(([icon, label], index) => (
+            <button key={label} className={`navItem ${index === 0 ? "active" : ""}`} type="button">
+              <span className="navIcon">{icon}</span>
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="sidebarFoot">
+          <span className="sidebarFootIcon">↻</span>
+          <div>
+            <strong>Human help ready</strong>
+            <span>Referral partners verified</span>
+          </div>
+        </div>
+      </aside>
+
+      <div className="workspace">
+        <header className="topbar">
+          <div>
+            <h1>Your Veteran Journey Navigator.</h1>
+            <p>Every room you've entered, every room not yet explored, and the evidence needed to open the next door.</p>
+          </div>
+          <form className="accountCard" action={signOut}>
+            <span>Signed in</span>
+            <strong>{displayName}</strong>
+            <button type="submit">Sign out</button>
+          </form>
+          <div className="topbarStats" aria-label="Navigator impact metrics">
+            <div><strong>{24 + 8}</strong><span>likely matches</span></div>
+            <div><strong>{rating}</strong><span>SC rating</span></div>
+            <div><strong>2</strong><span>answers needed</span></div>
           </div>
         </header>
 
-        {/* Profile + Voice */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-          <div style={{ background: "#fff", border: "1px solid #d9dfd5", borderRadius: 10, padding: "18px 20px" }}>
-            <h2 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 800 }}>Veteran Profile</h2>
+        <section className="commandBand" aria-label="Opportunity search">
+          <div className="commandInput">
+            <span>⌕</span>
+            <input placeholder="What opportunity should we check today?" />
+          </div>
+          <div className="profileSwitch" aria-label="Profile type">
+            <button className="active" type="button">Veteran</button>
+            <button type="button">Spouse</button>
+            <button type="button">Caregiver</button>
+          </div>
+        </section>
+
+        <section className="progressBand" aria-label="Intake progress">
+          {["Identity", "Service", "Rating", "Decision letter", "Florida"].map((step, index) => (
+            <div key={step} className={`step ${index === 3 ? "active" : "done"}`}>
+              <span>{index === 3 ? "4" : "✓"}</span>
+              <strong>{step}</strong>
+            </div>
+          ))}
+        </section>
+
+        <section className="testProfile panel" aria-label="Current veteran profile">
+          <div>
+            <span className="sectionLabel">Private workspace</span>
+            <h2>{branch} veteran, {state} resident, {rating} service-connected</h2>
+            <p>This live version uses Supabase Auth, user-scoped database rows, and private evidence storage while preserving the local navigator experience.</p>
+          </div>
+          <div className="profileFacts">
+            <span>Branch: {branch}</span>
+            <span>Rating: {rating}</span>
+            <span>Work: {workStatus}</span>
+            <span>State: {state}</span>
+            <span>Dependents: {dependentStatus}</span>
+            <span>Documents: {documents?.length || 0}</span>
+            <span>Voice notes: {notes?.length || 0}</span>
+            <span>Account: Private</span>
+          </div>
+        </section>
+
+        <section className="advisor">
+          <div className="advisorIcon">AI</div>
+          <div>
+            <strong>AI advisor</strong>
+            <p>For your {branch} veteran, {state} resident, {rating} service-connected profile, start with schedular review opportunities. Current strategy favors schedular evidence review over TDIU so future work and consulting options stay open.</p>
+          </div>
+          <button type="button">Prepare packet <span>→</span></button>
+        </section>
+
+        <section className="liveIntakeGrid">
+          <div className="panel livePanel">
+            <div className="panelHeader tight">
+              <div>
+                <h2>Veteran Profile</h2>
+                <p>Saved directly to your private Supabase profile row.</p>
+              </div>
+            </div>
             <ProfileForm profile={profile} />
           </div>
-          <div style={{ background: "#fff", border: "1px solid #d9dfd5", borderRadius: 10, padding: "18px 20px" }}>
-            <h2 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 800 }}>Voice / Typed Intake</h2>
-            <p style={{ margin: "0 0 12px", fontSize: 12, color: "#667184" }}>Record or type your note — saved to your private workspace.</p>
+          <div className="panel livePanel">
+            <div className="panelHeader tight">
+              <div>
+                <h2>Voice / Typed Intake</h2>
+                <p>Record or type your note, then save it to this veteran workspace.</p>
+              </div>
+            </div>
             <VoiceNoteForm />
-            {notes && notes.length > 0 && (
-              <div style={{ marginTop: 14 }}>
-                <strong style={{ fontSize: 13 }}>Saved notes ({notes.length})</strong>
+            {notes && notes.length > 0 ? (
+              <div className="liveNoteList">
+                <strong>Saved notes ({notes.length})</strong>
                 {notes.slice(0, 3).map((note) => (
-                  <div key={note.id} style={{ marginTop: 8, padding: "8px 10px", border: "1px solid #d9dfd5", borderRadius: 7 }}>
-                    <strong style={{ fontSize: 12 }}>{note.topic}</strong>
-                    <p style={{ margin: "2px 0 0", fontSize: 11, color: "#667184" }}>{note.transcript?.slice(0, 100)}{note.transcript?.length > 100 ? "…" : ""}</p>
+                  <div key={note.id} className="noteRow">
+                    <strong>{note.topic}</strong>
+                    <p>{note.transcript?.slice(0, 120)}{note.transcript?.length > 120 ? "..." : ""}</p>
                   </div>
                 ))}
               </div>
-            )}
+            ) : null}
           </div>
-        </div>
+        </section>
 
-        {/* Document Uploads */}
-        <div style={{ background: "#fff", border: "1px solid #d9dfd5", borderRadius: 10, padding: "18px 20px", marginBottom: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <section className="panel livePanel evidenceUploadPanel">
+          <div className="panelHeader tight">
             <div>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Evidence Uploads</h2>
-              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#667184" }}>Files upload to your private Supabase Storage bucket. Each upload flips the Evidence Inventory to Complete.</p>
+              <h2>Evidence Uploads</h2>
+              <p>Files upload to your private Supabase Storage bucket. Each upload updates this user’s evidence inventory.</p>
             </div>
-            <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 8px", borderRadius: 6, border: "1px solid #d9dfd5", color: "#667184" }}>{documents?.length || 0} uploaded</span>
+            <div className="intakeSignal">{documents?.length || 0} uploaded</div>
           </div>
           <DocumentUpload userId={user.id} />
-        </div>
+        </section>
 
-        {/* Full dashboard */}
         <VeteranDashboard profile={profile} userEmail={user.email || ""} documents={documents || []} />
-
-        {/* Document Translator */}
         <DocumentTranslator />
-
-        {/* Knowledge Graph Lab */}
         <KnowledgeGraphLab />
-
-        {/* Claim Review Coach */}
         <ClaimReviewCoach />
-
       </div>
     </main>
   );

@@ -42,3 +42,55 @@ export async function saveVoiceNote(formData: FormData) {
 
   revalidatePath("/");
 }
+
+export async function deleteDocument(formData: FormData) {
+  const supabase = await createClient();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) redirect("/");
+
+  const id = String(formData.get("document_id") || "");
+  if (!id) return;
+
+  const { data: document } = await supabase
+    .from("documents")
+    .select("id,file_path")
+    .eq("id", id)
+    .eq("user_id", userData.user.id)
+    .maybeSingle();
+
+  if (!document) return;
+
+  await supabase.storage.from("evidence-documents").remove([document.file_path]);
+  await supabase.from("documents").delete().eq("id", document.id).eq("user_id", userData.user.id);
+  revalidatePath("/");
+}
+
+export async function deleteDuplicateDocuments(formData: FormData) {
+  const supabase = await createClient();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) redirect("/");
+
+  const ids = formData.getAll("duplicate_document_id").map(String).filter(Boolean);
+  if (!ids.length) return;
+
+  const { data: documents } = await supabase
+    .from("documents")
+    .select("id,file_path")
+    .eq("user_id", userData.user.id)
+    .in("id", ids);
+
+  if (!documents?.length) return;
+
+  const paths = documents.map((document) => document.file_path).filter(Boolean);
+  if (paths.length) {
+    await supabase.storage.from("evidence-documents").remove(paths);
+  }
+
+  await supabase
+    .from("documents")
+    .delete()
+    .eq("user_id", userData.user.id)
+    .in("id", documents.map((document) => document.id));
+
+  revalidatePath("/");
+}

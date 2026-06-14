@@ -29,6 +29,17 @@ function SingleUpload({ target, userId }: { target: { id: string; title: string;
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const path = `${userId}/${target.id}/${Date.now()}-${safeName}`;
 
+      const { data: existing, error: existingError } = await supabase
+        .from("documents")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("category", target.id)
+        .eq("file_name", file.name)
+        .limit(1);
+
+      if (existingError) { setMessage(`Duplicate check failed: ${existingError.message}`); return; }
+      if (existing?.length) { setMessage("Already in vault. Delete the old copy first if you want to replace it."); return; }
+
       const { error: uploadError } = await supabase.storage.from("evidence-documents").upload(path, file, { upsert: false });
       if (uploadError) { setMessage(`Upload failed: ${uploadError.message}`); return; }
 
