@@ -22,15 +22,15 @@ const actions = [
   { title: "Claim Florida free lifetime state park pass", meta: "Service-connected veterans can qualify with proof of status and honorable discharge", priority: "Open" },
 ];
 
-const evidenceInventory = [
-  { category: "Service Records", status: "Complete", note: "Service verification and proof of honorable service captured." },
-  { category: "VA Letters", status: "Complete", note: "Benefit summary, FMP, civil-service, and COE letters captured." },
-  { category: "Rating Decisions", status: "Missing", note: "Need full decision with individual ratings, diagnostic codes, and reasons." },
-  { category: "SSDI Records", status: "Missing", note: "Need award letter or BPQY showing SSA-recognized conditions." },
-  { category: "Surgical Records", status: "Missing", note: "Need aortic surgery, dialysis episode, follow-up care, and residual notes." },
-  { category: "Medication List", status: "Missing", note: "Needed for current treatment profile and functional impact." },
-  { category: "Employment Timeline", status: "Missing", note: "Needed to understand work limits and timeline context." },
-  { category: "Personal Statement Timeline", status: "Missing", note: "Needed to explain symptoms, changes, and daily limitations." },
+const evidenceConfig = [
+  { category: "Service Records", docCategory: "service-records", note: "Service verification and proof of honorable service captured." },
+  { category: "VA Letters", docCategory: "va-letters", note: "Benefit summary, FMP, civil-service, and COE letters captured." },
+  { category: "Rating Decisions", docCategory: "rating-decision", note: "Need full decision with individual ratings, diagnostic codes, and reasons." },
+  { category: "SSDI Records", docCategory: "ssdi-records", note: "Need award letter or BPQY showing SSA-recognized conditions." },
+  { category: "Surgical Records", docCategory: "surgery-records", note: "Need aortic surgery, dialysis episode, follow-up care, and residual notes." },
+  { category: "Medication List", docCategory: "medications", note: "Needed for current treatment profile and functional impact." },
+  { category: "Employment Timeline", docCategory: "employment", note: "Needed to understand work limits and timeline context." },
+  { category: "Personal Statement Timeline", docCategory: "personal-statement", note: "Needed to explain symptoms, changes, and daily limitations." },
 ];
 
 const opportunityScores = [
@@ -105,7 +105,7 @@ function statusColor(s: string) {
 
 function Pill({ label }: { label: string }) {
   return (
-    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: statusColor(label) + "22", color: statusColor(label), border: `1px solid ${statusColor(label)}44`, whiteSpace: "nowrap" }}>
+    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: statusColor(label) + "22", color: statusColor(label), border: `1px solid ${statusColor(label)}44`, whiteSpace: "nowrap" as const }}>
       {label}
     </span>
   );
@@ -119,16 +119,17 @@ function Card({ title, sub, children, badge }: { title: string; sub?: string; ch
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{title}</h2>
           {sub && <p style={{ margin: "3px 0 0", color: "#667184", fontSize: 12 }}>{sub}</p>}
         </div>
-        {badge && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, border: "1px solid #d9dfd5", color: "#667184", whiteSpace: "nowrap", marginLeft: 8 }}>{badge}</span>}
+        {badge && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, border: "1px solid #d9dfd5", color: "#667184", whiteSpace: "nowrap" as const, marginLeft: 8 }}>{badge}</span>}
       </div>
       {children}
     </div>
   );
 }
 
+type Doc = { id: string; category: string; file_name: string; status: string; };
 type Profile = { display_name?: string | null; branch?: string | null; state?: string | null; current_rating?: string | null; work_status?: string | null; dependent_status?: string | null; } | null;
 
-export function VeteranDashboard({ profile, userEmail }: { profile: Profile; userEmail: string }) {
+export function VeteranDashboard({ profile, userEmail, documents = [] }: { profile: Profile; userEmail: string; documents?: Doc[] }) {
   const [selectedCat, setSelectedCat] = useState("Schedular Review");
   const [understanding, setUnderstanding] = useState([true, true, true, false, false, false]);
   const [protocol, setProtocol] = useState([true, true, false, false]);
@@ -139,19 +140,22 @@ export function VeteranDashboard({ profile, userEmail }: { profile: Profile; use
   const rating = profile?.current_rating || "90%";
   const cat = categories.find((c) => c.name === selectedCat) || categories[0];
 
+  // Build live evidence inventory from real uploaded documents
+  const uploadedCategories = new Set(documents.map((d) => d.category));
+  const liveEvidenceInventory = evidenceConfig.map((item) => ({
+    ...item,
+    status: uploadedCategories.has(item.docCategory) ? "Complete" : "Missing",
+  }));
+
+  const completedCount = liveEvidenceInventory.filter((i) => i.status === "Complete").length;
+  const totalCount = liveEvidenceInventory.length;
+
   function copyBrief() {
     const text = briefSections.map((s) => `${s.title}\n${s.points.map((p) => `- ${p}`).join("\n")}`).join("\n\n");
     navigator.clipboard.writeText(text).catch(() => {});
     setBriefCopied(true);
     setTimeout(() => setBriefCopied(false), 3000);
   }
-
-  const row = (label: string, value: React.ReactNode) => (
-    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 5 }}>
-      <span style={{ fontSize: 13, color: "#667184" }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: 700 }}>{value}</span>
-    </div>
-  );
 
   return (
     <div style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", color: "#172132" }}>
@@ -191,12 +195,15 @@ export function VeteranDashboard({ profile, userEmail }: { profile: Profile; use
         ))}
       </Card>
 
-      {/* Knowledge Vault */}
-      <Card title="Veteran Knowledge Vault" sub="Evidence inventory, document tags, opportunity scores, and life-event context in one place." badge="Deepen the model, not the feature list">
+      {/* Knowledge Vault — live evidence inventory */}
+      <Card title="Veteran Knowledge Vault" sub="Evidence inventory, document tags, opportunity scores, and life-event context in one place." badge={`${completedCount}/${totalCount} complete`}>
         <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Evidence Inventory</h3>
-        {evidenceInventory.map((item) => (
+        {liveEvidenceInventory.map((item) => (
           <div key={item.category} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 5 }}>
-            <div><strong style={{ fontSize: 13 }}>{item.category}</strong><p style={{ margin: "1px 0 0", fontSize: 11, color: "#667184" }}>{item.note}</p></div>
+            <div>
+              <strong style={{ fontSize: 13 }}>{item.category}</strong>
+              <p style={{ margin: "1px 0 0", fontSize: 11, color: "#667184" }}>{item.note}</p>
+            </div>
             <Pill label={item.status} />
           </div>
         ))}
@@ -208,13 +215,25 @@ export function VeteranDashboard({ profile, userEmail }: { profile: Profile; use
           </div>
         ))}
         <h3 style={{ margin: "12px 0 8px", fontSize: 14 }}>Document Vault</h3>
-        {vaultDocuments.map((doc) => (
-          <div key={doc.name} style={{ padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 5 }}>
-            <strong style={{ fontSize: 13 }}>{doc.name}</strong>
-            <div style={{ display: "flex", gap: 4, margin: "3px 0" }}>{doc.tags.map((t) => <span key={t} style={{ fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "#f4f6f3", color: "#267a56", fontWeight: 600 }}>{t}</span>)}</div>
-            <small style={{ color: "#667184", fontSize: 11 }}>Linked to: {doc.linked}</small>
-          </div>
-        ))}
+        {documents.length > 0 ? (
+          documents.map((doc) => (
+            <div key={doc.id} style={{ padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 5 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <strong style={{ fontSize: 13 }}>{doc.file_name}</strong>
+                <Pill label="Uploaded" />
+              </div>
+              <small style={{ color: "#667184", fontSize: 11 }}>Category: {doc.category}</small>
+            </div>
+          ))
+        ) : (
+          vaultDocuments.map((doc) => (
+            <div key={doc.name} style={{ padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 5 }}>
+              <strong style={{ fontSize: 13 }}>{doc.name}</strong>
+              <div style={{ display: "flex", gap: 4, margin: "3px 0" }}>{doc.tags.map((t) => <span key={t} style={{ fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "#f4f6f3", color: "#267a56", fontWeight: 600 }}>{t}</span>)}</div>
+              <small style={{ color: "#667184", fontSize: 11 }}>Linked to: {doc.linked}</small>
+            </div>
+          ))
+        )}
         <h3 style={{ margin: "12px 0 8px", fontSize: 14 }}>Life Events Timeline Engine</h3>
         {lifeEvents.map((event) => (
           <div key={event.when} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 5 }}>

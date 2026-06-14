@@ -48,7 +48,6 @@ export default async function Home() {
           </div>
         </header>
 
-        {/* Profile + Uploads + Voice — top of page */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
           <div style={{ background: "#fff", border: "1px solid #d9dfd5", borderRadius: 10, padding: "18px 20px" }}>
             <h2 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 800 }}>Veteran Profile</h2>
@@ -60,7 +59,7 @@ export default async function Home() {
             <VoiceNoteForm />
             {notes && notes.length > 0 && (
               <div style={{ marginTop: 14 }}>
-                <strong style={{ fontSize: 13 }}>Saved notes</strong>
+                <strong style={{ fontSize: 13 }}>Saved notes ({notes.length})</strong>
                 {notes.slice(0, 3).map((note) => (
                   <div key={note.id} style={{ marginTop: 8, padding: "8px 10px", border: "1px solid #d9dfd5", borderRadius: 7 }}>
                     <strong style={{ fontSize: 12 }}>{note.topic}</strong>
@@ -83,8 +82,7 @@ export default async function Home() {
           <DocumentUpload userId={user.id} />
         </div>
 
-        {/* Full analysis dashboard */}
-        <VeteranDashboard profile={profile} userEmail={user.email || ""} />
+        <VeteranDashboard profile={profile} userEmail={user.email || ""} documents={documents || []} />
       </div>
     </main>
   );
