@@ -25,6 +25,10 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -251,6 +255,7 @@ button {
 }
 
 .navItem {
+  text-decoration: none;
   border: 1px solid transparent;
   background: transparent;
   color: #c4d0d8;
@@ -262,6 +267,10 @@ button {
   text-align: left;
   font-weight: 650;
   font-size: 14px;
+}
+
+.anchorSection {
+  scroll-margin-top: 22px;
 }
 
 .navItem:hover,

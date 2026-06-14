@@ -56,18 +56,18 @@ export default async function Home() {
         </div>
         <nav className="navList">
           {[
-            ["BD", "Benefits Discovery"],
-            ["ES", "Eligibility Screening"],
-            ["CP", "Claims Preparation"],
-            ["DO", "Document Organization"],
-            ["BE", "Benefit Education"],
-            ["RD", "Resource Directory"],
-            ["RN", "Referral Network"]
-          ].map(([icon, label], index) => (
-            <button key={label} className={`navItem ${index === 0 ? "active" : ""}`} type="button">
+            ["BD", "Benefits Discovery", "#benefits-discovery"],
+            ["ES", "Eligibility Screening", "#eligibility-screening"],
+            ["CP", "Claims Preparation", "#claims-preparation"],
+            ["DO", "Document Organization", "#document-organization"],
+            ["BE", "Benefit Education", "#benefit-education"],
+            ["RD", "Resource Directory", "#resource-directory"],
+            ["RN", "Referral Network", "#referral-network"]
+          ].map(([icon, label, href], index) => (
+            <a key={label} className={`navItem ${index === 0 ? "active" : ""}`} href={href}>
               <span className="navIcon">{icon}</span>
               <span>{label}</span>
-            </button>
+            </a>
           ))}
         </nav>
         <div className="sidebarFoot">
@@ -118,7 +118,7 @@ export default async function Home() {
           ))}
         </section>
 
-        <section className="testProfile panel" aria-label="Current veteran profile">
+        <section id="benefits-discovery" className="testProfile panel anchorSection" aria-label="Current veteran profile">
           <div>
             <span className="sectionLabel">Private workspace</span>
             <h2>{branch} veteran, {state} resident, {rating} service-connected</h2>
@@ -145,7 +145,7 @@ export default async function Home() {
           <button type="button">Prepare packet <span>→</span></button>
         </section>
 
-        <section className="liveIntakeGrid">
+        <section id="eligibility-screening" className="liveIntakeGrid anchorSection">
           <div className="panel livePanel">
             <div className="panelHeader tight">
               <div>
@@ -177,7 +177,7 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="panel livePanel evidenceUploadPanel">
+        <section id="document-organization" className="panel livePanel evidenceUploadPanel anchorSection">
           <div className="panelHeader tight">
             <div>
               <h2>Evidence Uploads</h2>
@@ -188,10 +188,18 @@ export default async function Home() {
           <DocumentUpload userId={user.id} />
         </section>
 
-        <VeteranDashboard profile={profile} userEmail={user.email || ""} documents={documents || []} />
-        <DocumentTranslator />
-        <KnowledgeGraphLab />
-        <ClaimReviewCoach />
+        <section id="claims-preparation" className="anchorSection">
+          <VeteranDashboard profile={profile} userEmail={user.email || ""} documents={documents || []} />
+        </section>
+        <section id="benefit-education" className="anchorSection">
+          <DocumentTranslator />
+        </section>
+        <section id="resource-directory" className="anchorSection">
+          <KnowledgeGraphLab />
+        </section>
+        <section id="referral-network" className="anchorSection">
+          <ClaimReviewCoach />
+        </section>
       </div>
     </main>
   );
