@@ -1,6 +1,6 @@
 import { signOut } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
-import { VeteranDashboard, KnowledgeGraphLab, ClaimReviewCoach, DocumentTranslator, NonVaBenefits, SecondaryOpportunityExplorer } from "@/components/VeteranDashboard";
+import { VeteranDashboard, KnowledgeGraphLab, ClaimReviewCoach, DocumentTranslator, NonVaBenefits, SecondaryOpportunityExplorer, RatingGapAnalyzer, VSOPacketGenerator } from "@/components/VeteranDashboard";
 import { AuthButtons } from "@/components/AuthButtons";
 import { ProfileForm } from "@/components/ProfileForm";
 import { DocumentUpload } from "@/components/DocumentUpload";
@@ -96,7 +96,9 @@ export default async function Home() {
             ["ES", "Eligibility Screening", "#eligibility-screening"],
             ["NV", "Non-VA Benefits", "#non-va-benefits"],
             ["CP", "Claims Preparation", "#claims-preparation"],
+            ["RG", "Rating Gap", "#rating-gap-analyzer"],
             ["SO", "Secondary Explorer", "#secondary-opportunity-explorer"],
+            ["VP", "VSO Packet", "#vso-packet-generator"],
             ["DO", "Document Organization", "#document-organization"],
             ["BE", "Benefit Education", "#benefit-education"],
             ["RD", "Resource Directory", "#resource-directory"],
@@ -240,8 +242,14 @@ export default async function Home() {
         <section id="claims-preparation" className="anchorSection">
           <VeteranDashboard profile={profile} userEmail={user.email || ""} documents={documents || []} />
         </section>
+        <section id="rating-gap-analyzer" className="anchorSection">
+          <RatingGapAnalyzer profile={profile} />
+        </section>
         <section id="secondary-opportunity-explorer" className="anchorSection">
           <SecondaryOpportunityExplorer documents={documents || []} />
+        </section>
+        <section id="vso-packet-generator" className="anchorSection">
+          <VSOPacketGenerator profile={profile} documents={documents || []} />
         </section>
         <section id="benefit-education" className="anchorSection">
           <DocumentTranslator />

@@ -575,6 +575,152 @@ function readinessForPathway(needs: string[], documents: Doc[]) {
   return { statuses, score: Math.min(100, score) };
 }
 
+function parseRating(value?: string | null) {
+  const match = String(value || "").match(/\d+/);
+  return match ? Number(match[0]) : 90;
+}
+
+function combineRatings(rawCombined: number, additional: number) {
+  return Math.round(rawCombined + (100 - rawCombined) * (additional / 100));
+}
+
+function displayedVaRating(rawCombined: number) {
+  if (rawCombined >= 95) return 100;
+  return Math.round(rawCombined / 10) * 10;
+}
+
+export function RatingGapAnalyzer({ profile }: { profile: Profile }) {
+  const displayedRating = parseRating(profile?.current_rating);
+  const rawRange = displayedRating === 100
+    ? "95-100"
+    : `${Math.max(0, displayedRating - 5)}-${Math.min(94, displayedRating + 4)}`;
+  const planningBaseline = displayedRating === 90 ? 90 : displayedRating;
+  const scenarios = [
+    { label: "One additional 50% condition", raw: combineRatings(planningBaseline, 50) },
+    { label: "One additional 70% condition", raw: combineRatings(planningBaseline, 70) },
+    { label: "Two additional 30% conditions", raw: combineRatings(combineRatings(planningBaseline, 30), 30) },
+    { label: "Increase an existing 30% condition to 70%", raw: combineRatings(planningBaseline, 40) },
+    { label: "Multiple smaller changes", raw: combineRatings(combineRatings(planningBaseline, 20), 20) },
+  ];
+
+  return (
+    <div style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", color: "#172132" }}>
+      <Card title="Rating Gap Analyzer" sub="Educational VA-math planning only. This does not predict outcomes or recommend filing." badge="Educational calculator">
+        <div style={{ padding: "10px 12px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0", marginBottom: 12 }}>
+          <strong style={{ display: "block", color: "#8a6319", fontSize: 12 }}>No outcome prediction</strong>
+          <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12, lineHeight: 1.45 }}>
+            Educational use only. VA combined math examples require the exact individual ratings to be precise. Review all planning with an accredited VSO, attorney, or VA-accredited representative.
+          </p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginBottom: 12 }} className="nonVaLaneGrid">
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
+            <span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>Displayed rating</span>
+            <div style={{ fontSize: 30, fontWeight: 950, lineHeight: 1.1 }}>{displayedRating}%</div>
+          </div>
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
+            <span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>Possible raw range</span>
+            <div style={{ fontSize: 30, fontWeight: 950, lineHeight: 1.1 }}>{rawRange}%</div>
+          </div>
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
+            <span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>100% threshold</span>
+            <div style={{ fontSize: 30, fontWeight: 950, lineHeight: 1.1 }}>95%+</div>
+          </div>
+        </div>
+
+        <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Educational Examples</h3>
+        {scenarios.map((scenario) => (
+          <div key={scenario.label} style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 7 }}>
+            <div>
+              <strong style={{ fontSize: 13 }}>{scenario.label}</strong>
+              <p style={{ margin: "2px 0 0", color: "#667184", fontSize: 11 }}>Uses a planning baseline of {planningBaseline}% until individual ratings are entered.</p>
+            </div>
+            <div style={{ textAlign: "right" as const }}>
+              <strong style={{ color: readinessTone(scenario.raw), fontSize: 18 }}>{scenario.raw}% raw</strong>
+              <div style={{ color: "#667184", fontSize: 11 }}>rounds to {displayedVaRating(scenario.raw)}%</div>
+            </div>
+          </div>
+        ))}
+
+        <div style={{ marginTop: 10, padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 8 }}>
+          <strong style={{ display: "block", fontSize: 13 }}>What would make this exact?</strong>
+          <p style={{ margin: "3px 0 0", color: "#667184", fontSize: 12 }}>
+            Add the veteran's individual rating breakdown and bilateral-factor details from the latest rating decision. Until then, this is a planning aid, not a definitive VA math calculation.
+          </p>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+export function VSOPacketGenerator({ profile, documents = [] }: { profile: Profile; documents?: Doc[] }) {
+  const topTopics = secondaryConditions.flatMap((condition) =>
+    condition.pathways.map((pathway) => {
+      const readiness = readinessForPathway(pathway.needs, documents);
+      return { condition: condition.condition, topic: pathway.topic, score: readiness.score };
+    })
+  ).sort((a, b) => b.score - a.score).slice(0, 6);
+  const evidenceCategories = Array.from(new Set(documents.map((doc) => documentLabel(doc.category)))).slice(0, 8);
+  const missingEvidence = ["Latest rating decision with individual ratings", "Nexus or medical opinion where applicable", "Personal functional impact statement", "Condition logs such as headache or flare-up logs", "Updated specialist records"].slice(0, 5);
+  const rating = ratingDisplay(profile?.current_rating);
+
+  function printPacket() {
+    window.print();
+  }
+
+  return (
+    <div style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", color: "#172132" }}>
+      <Card title="VSO Meeting Packet Generator" sub="One-page preparation packet for VSO, attorney, or VA-accredited representative conversations." badge="Print-ready">
+        <div style={{ padding: "10px 12px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0", marginBottom: 12 }}>
+          <strong style={{ display: "block", color: "#8a6319", fontSize: 12 }}>Preparation only</strong>
+          <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12, lineHeight: 1.45 }}>{educationDisclaimer}</p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, marginBottom: 12 }} className="nonVaLaneGrid">
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+            <strong style={{ fontSize: 13 }}>Current profile snapshot</strong>
+            {[
+              `Displayed rating: ${rating}`,
+              `Branch: ${profile?.branch || "Not entered"}`,
+              `State: ${stateDisplay(profile?.state)}`,
+              `P&T status: ${profile?.permanent_total_status || "Not entered"}`,
+              `Work status: ${profile?.work_status || "Not entered"}`,
+            ].map((item) => <p key={item} style={{ margin: "5px 0 0", color: "#667184", fontSize: 12 }}>{item}</p>)}
+          </div>
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+            <strong style={{ fontSize: 13 }}>Questions for representative</strong>
+            {[
+              "Which discussion topics are evidence-ready enough to review?",
+              "What documentation appears missing before any claim decision?",
+              "Are any symptoms already compensated under another condition?",
+              "What records should be gathered before the next appointment?",
+            ].map((item) => <p key={item} style={{ margin: "5px 0 0", color: "#667184", fontSize: 12 }}>{item}</p>)}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginBottom: 12 }} className="nonVaLaneGrid">
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+            <strong style={{ fontSize: 13 }}>Potential discussion topics</strong>
+            {topTopics.map((topic) => <p key={`${topic.condition}-${topic.topic}`} style={{ margin: "5px 0 0", color: "#667184", fontSize: 12 }}>{topic.topic} <span style={{ color: "#267a56" }}>({topic.score})</span></p>)}
+          </div>
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+            <strong style={{ fontSize: 13 }}>Evidence available</strong>
+            {(evidenceCategories.length ? evidenceCategories : ["No uploaded evidence categories yet"]).map((item) => <p key={item} style={{ margin: "5px 0 0", color: "#667184", fontSize: 12 }}>{item}</p>)}
+          </div>
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+            <strong style={{ fontSize: 13 }}>Evidence to discuss</strong>
+            {missingEvidence.map((item) => <p key={item} style={{ margin: "5px 0 0", color: "#667184", fontSize: 12 }}>{item}</p>)}
+          </div>
+        </div>
+
+        <button onClick={printPacket} type="button" style={{ width: "100%", minHeight: 40, borderRadius: 8, border: "1px solid #d9dfd5", background: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 13, color: "#172132" }}>
+          Generate VSO packet / save as PDF
+        </button>
+      </Card>
+    </div>
+  );
+}
+
 export function SecondaryOpportunityExplorer({ documents = [] }: { documents?: Doc[] }) {
   const discussionTopics = secondaryConditions.flatMap((condition) =>
     condition.pathways.map((pathway) => {
