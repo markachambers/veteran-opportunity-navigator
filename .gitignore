@@ -1,0 +1,8 @@
+outputs/
+*.zip
+work/
+.DS_Store
+*/.DS_Store
+web-app/.env.local
+web-app/.next/
+web-app/node_modules/

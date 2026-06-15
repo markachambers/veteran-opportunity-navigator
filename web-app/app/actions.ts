@@ -4,6 +4,32 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
+const stateNames: Record<string, string> = {
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado",
+  CT: "Connecticut", DE: "Delaware", FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho",
+  IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana",
+  ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan", MN: "Minnesota",
+  MS: "Mississippi", MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada",
+  NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York",
+  NC: "North Carolina", ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon",
+  PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota",
+  TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia",
+  WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming", DC: "District of Columbia",
+};
+
+function formValue(formData: FormData, key: string) {
+  return String(formData.get(key) || "").trim();
+}
+
+function normalizeState(value: string) {
+  const trimmed = value.trim();
+  return stateNames[trimmed.toUpperCase()] || trimmed;
+}
+
+function isRankLike(value: string) {
+  return /^(E|O|W)-?[0-9]$/i.test(value.trim());
+}
+
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
@@ -15,17 +41,40 @@ export async function upsertProfile(formData: FormData) {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user) redirect("/");
 
+  const rawRating = formValue(formData, "current_rating");
+  const rawRank = formValue(formData, "rank_pay_grade");
+
   const payload = {
     id: userData.user.id,
-    display_name: String(formData.get("display_name") || ""),
-    branch: String(formData.get("branch") || ""),
-    state: String(formData.get("state") || ""),
-    current_rating: String(formData.get("current_rating") || ""),
-    work_status: String(formData.get("work_status") || ""),
-    dependent_status: String(formData.get("dependent_status") || "")
+    display_name: formValue(formData, "display_name"),
+    branch: formValue(formData, "branch"),
+    state: normalizeState(formValue(formData, "state")),
+    current_rating: isRankLike(rawRating) ? "" : rawRating,
+    rank_pay_grade: rawRank || (isRankLike(rawRating) ? rawRating.toUpperCase().replace(/^([EOW])([0-9])$/, "$1-$2") : ""),
+    service_status: formValue(formData, "service_status"),
+    work_status: formValue(formData, "work_status"),
+    dependent_status: formValue(formData, "dependent_status"),
+    permanent_total_status: formValue(formData, "permanent_total_status"),
+    monthly_award: formValue(formData, "monthly_award"),
+    va_loan_status: formValue(formData, "va_loan_status"),
+    federal_preference_status: formValue(formData, "federal_preference_status"),
+    fmp_status: formValue(formData, "fmp_status")
   };
 
-  await supabase.from("profiles").upsert(payload);
+  const { error } = await supabase.from("profiles").upsert(payload);
+  if (error) {
+    await supabase.from("profiles").upsert({
+      id: payload.id,
+      display_name: payload.display_name,
+      branch: payload.branch,
+      state: payload.state,
+      current_rating: payload.current_rating,
+      service_status: payload.service_status,
+      work_status: payload.work_status,
+      dependent_status: payload.dependent_status,
+      permanent_total_status: payload.permanent_total_status,
+    });
+  }
   revalidatePath("/");
 }
 

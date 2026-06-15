@@ -202,10 +202,12 @@ button {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 292px minmax(0, 1fr);
+  align-items: start;
 }
 
 .sidebar {
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
   padding: 28px 22px;
   color: #edf6f0;
   border-right: 1px solid rgba(255, 255, 255, 0.1);
@@ -214,6 +216,8 @@ button {
   gap: 28px;
   position: sticky;
   top: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .brand {
@@ -934,9 +938,12 @@ button {
 
   .sidebar {
     position: relative;
+    height: auto;
+    max-height: none;
     min-height: auto;
     flex-direction: row;
-    overflow-x: visible;
+    overflow-x: auto;
+    overflow-y: hidden;
     align-items: center;
     padding: 13px;
   }

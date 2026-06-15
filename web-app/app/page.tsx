@@ -6,6 +6,35 @@ import { ProfileForm } from "@/components/ProfileForm";
 import { DocumentUpload } from "@/components/DocumentUpload";
 import { VoiceNoteForm } from "@/components/VoiceNoteForm";
 
+const stateAliases: Record<string, string> = {
+  FL: "Florida",
+  DC: "District of Columbia",
+};
+
+function displayState(state?: string | null) {
+  if (!state) return "Florida";
+  return stateAliases[state.toUpperCase()] || state;
+}
+
+function isRankLike(value?: string | null) {
+  return /^(E|O|W)-?[0-9]$/i.test(value || "");
+}
+
+function displayRating(value?: string | null) {
+  if (!value || isRankLike(value)) return "Add rating";
+  return value;
+}
+
+function displayRank(profile: any) {
+  const rank = profile?.rank_pay_grade || (isRankLike(profile?.current_rating) ? profile?.current_rating : "");
+  return rank || "Add rank";
+}
+
+function displayDependents(value?: string | null) {
+  if (!value || value === "0") return "None";
+  return value;
+}
+
 export default async function Home() {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
@@ -39,10 +68,17 @@ export default async function Home() {
 
   const displayName = profile?.display_name || user.email || "Veteran";
   const branch = profile?.branch || "Air Force";
-  const state = profile?.state || "Florida";
-  const rating = profile?.current_rating || "90%";
+  const state = displayState(profile?.state);
+  const rating = displayRating(profile?.current_rating);
+  const rank = displayRank(profile);
   const workStatus = profile?.work_status || "Unemployed + SSDI";
-  const dependentStatus = profile?.dependent_status || "None";
+  const dependentStatus = displayDependents(profile?.dependent_status);
+  const serviceStatus = profile?.service_status || "Honorable";
+  const permanentTotalStatus = profile?.permanent_total_status || "No";
+  const monthlyAward = profile?.monthly_award || "Add award";
+  const vaLoanStatus = profile?.va_loan_status || "Add VA loan";
+  const federalPreference = profile?.federal_preference_status || "Add preference";
+  const fmpStatus = profile?.fmp_status || "Add FMP";
 
   return (
     <main className="appShell">
@@ -128,9 +164,16 @@ export default async function Home() {
           <div className="profileFacts">
             <span>Branch: {branch}</span>
             <span>Rating: {rating}</span>
+            <span>Rank: {rank}</span>
+            <span>Service: {serviceStatus}</span>
             <span>Work: {workStatus}</span>
             <span>State: {state}</span>
             <span>Dependents: {dependentStatus}</span>
+            <span>P&T: {permanentTotalStatus}</span>
+            <span>Monthly award: {monthlyAward}</span>
+            <span>VA loan: {vaLoanStatus}</span>
+            <span>Federal preference: {federalPreference}</span>
+            <span>FMP: {fmpStatus}</span>
             <span>Documents: {documents?.length || 0}</span>
             <span>Voice notes: {notes?.length || 0}</span>
             <span>Account: Private</span>

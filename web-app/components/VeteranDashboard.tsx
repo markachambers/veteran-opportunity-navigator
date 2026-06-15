@@ -184,7 +184,19 @@ function stateBenefitsUrl(state: string, branch?: string | null) {
 }
 
 function stateDisplay(state?: string | null) {
-  return state?.trim() || "Florida";
+  const value = state?.trim();
+  if (!value) return "Florida";
+  const aliases: Record<string, string> = { FL: "Florida", DC: "District of Columbia" };
+  return aliases[value.toUpperCase()] || value;
+}
+
+function isRankLike(value?: string | null) {
+  return /^(E|O|W)-?[0-9]$/i.test(value || "");
+}
+
+function ratingDisplay(value?: string | null) {
+  if (!value || isRankLike(value)) return "Add rating";
+  return value;
 }
 
 function nationwideStateBenefitLanes(state: string, branch?: string | null) {
@@ -399,7 +411,21 @@ function Card({ title, sub, children, badge }: { title: string; sub?: string; ch
 }
 
 type Doc = { id: string; category: string; file_name: string; status: string; file_path?: string; created_at?: string; };
-type Profile = { display_name?: string | null; branch?: string | null; state?: string | null; current_rating?: string | null; work_status?: string | null; dependent_status?: string | null; } | null;
+type Profile = {
+  display_name?: string | null;
+  branch?: string | null;
+  state?: string | null;
+  current_rating?: string | null;
+  rank_pay_grade?: string | null;
+  service_status?: string | null;
+  work_status?: string | null;
+  dependent_status?: string | null;
+  permanent_total_status?: string | null;
+  monthly_award?: string | null;
+  va_loan_status?: string | null;
+  federal_preference_status?: string | null;
+  fmp_status?: string | null;
+} | null;
 
 function documentLabel(category: string) {
   return documentCategoryLabels[category] || category.replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -440,8 +466,8 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
   const [briefCopied, setBriefCopied] = useState(false);
 
   const branch = profile?.branch || "Air Force";
-  const state = profile?.state || "Florida";
-  const rating = profile?.current_rating || "90%";
+  const state = stateDisplay(profile?.state);
+  const rating = ratingDisplay(profile?.current_rating);
   const cat = categories.find((c) => c.name === selectedCat) || categories[0];
   const vaultGroups = dedupeDocuments(documents);
 
@@ -718,7 +744,7 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
 export function NonVaBenefits({ profile }: { profile: Profile }) {
   const state = stateDisplay(profile?.state);
   const branch = profile?.branch || "Air Force";
-  const rating = profile?.current_rating || "90%";
+  const rating = ratingDisplay(profile?.current_rating);
   const benefitSource = branchBenefitSource(branch);
   const selectedStateLanes = nationwideStateBenefitLanes(state, branch);
   const readyCount = selectedStateLanes.filter((lane) => ["Ready", "Strong", "High", "Likely", "Start Here", "Federal", "Branch"].includes(lane.level)).length;
