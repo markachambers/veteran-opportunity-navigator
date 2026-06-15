@@ -117,7 +117,7 @@ export default async function Home() {
           <span className="sidebarFootIcon">↻</span>
           <div>
             <strong>Human help ready</strong>
-            <span>Referral partners verified</span>
+            <span>Privacy scrub active</span>
           </div>
         </div>
       </aside>
