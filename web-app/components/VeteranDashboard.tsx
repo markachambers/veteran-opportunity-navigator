@@ -400,6 +400,33 @@ const secondaryConditions = [
   },
 ];
 
+const ssdiApplicationPhases = [
+  {
+    phase: "Before you apply / before the meeting",
+    steps: [
+      { title: "Gather medical evidence", detail: "Collect VA decisions, C&P exams, private records, hospital records, and records for every limiting condition.", status: "Required" },
+      { title: "Build work history", detail: "SSA usually needs jobs from the last 15 years: title, duties, dates, hours, and pay.", status: "Required" },
+      { title: "Choose onset date carefully", detail: "The date conditions prevented work affects SSA review and should be tied to records where possible.", status: "Important" },
+    ],
+  },
+  {
+    phase: "Applying or retrieving records",
+    steps: [
+      { title: "Apply online or request SSA records", detail: "Use SSA.gov for applications, or retrieve award/BPQY records to identify the medical basis of an existing award.", status: "Start here" },
+      { title: "List every limiting condition", detail: "SSA evaluates combined functional impact. Do not list only one condition if several limit work.", status: "Important" },
+      { title: "Ask about veteran handling", detail: "Ask whether any veteran expedited handling applies and document who you spoke with.", status: "Ask" },
+    ],
+  },
+  {
+    phase: "After applying / after award",
+    steps: [
+      { title: "Track all SSA requests", detail: "Missed forms, consultative exams, or deadlines can derail the application.", status: "Important" },
+      { title: "Preserve BPQY and award evidence", detail: "These records help explain what SSA recognized, onset dates, Medicare timing, and work history.", status: "Evidence" },
+      { title: "Keep VA and SSA separate", detail: "SSDI and VA compensation are separate programs. Evidence may overlap, but rules and decisions differ.", status: "Note" },
+    ],
+  },
+];
+
 const journeyItems = [
   { date: "Aug 1985 - May 1988", title: "Air Force service", status: "Verified", text: "VA service verification confirms honorable Air Force service for this period." },
   { date: "Apr 1, 2026", title: "Current award status", status: "Verified", text: "Benefit summary shows 90% combined service-connected evaluation, monthly award, and not P&T." },
@@ -716,6 +743,99 @@ export function VSOPacketGenerator({ profile, documents = [] }: { profile: Profi
         <button onClick={printPacket} type="button" style={{ width: "100%", minHeight: 40, borderRadius: 8, border: "1px solid #d9dfd5", background: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 13, color: "#172132" }}>
           Generate VSO packet / save as PDF
         </button>
+      </Card>
+    </div>
+  );
+}
+
+export function SSDIEvidenceMapper({ documents = [] }: { documents?: Doc[] }) {
+  const [selected, setSelected] = useState(["Sleep apnea", "Depression", "Lumbar spine", "Radiculopathy"]);
+  const ssdiDocs = documents.filter((doc) => doc.category === "ssdi-records" || /ssdi|ssa|bpqy|social security/i.test(doc.file_name));
+  const employmentDocs = documents.filter((doc) => doc.category === "employment" || /employment|work|job|wage/i.test(doc.file_name));
+  const matched = graphConditions.filter((condition) => selected.includes(condition.name));
+  const unmatched = graphConditions.filter((condition) => !selected.includes(condition.name));
+  const overlapLabel = matched.length >= 3 ? "Strong SSDI-to-SC overlap" : matched.length ? "Partial overlap" : "No SSDI conditions selected";
+
+  const checklist = [
+    { label: "SSDI award letter or BPQY", status: ssdiDocs.length ? "Found" : "Missing", note: "Confirms SSA award context, onset, and recognized conditions where available." },
+    { label: "Work history", status: employmentDocs.length ? "Found" : "Missing", note: "SSA and VSO conversations both benefit from job duties, hours, dates, and limits." },
+    { label: "Medical basis mapped to VA SC list", status: matched.length ? "Partial" : "Missing", note: "Map SSA-recognized conditions to VA service-connected conditions without merging the legal standards." },
+    { label: "Functional impact statement", status: documents.some((doc) => /statement|impact|personal/i.test(doc.file_name)) ? "Found" : "Missing", note: "Explains daily limits, work limits, fatigue, pain, sleep, concentration, and reliability." },
+  ];
+
+  return (
+    <div style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", color: "#172132" }}>
+      <Card title="SSDI / SSA Evidence Mapper" sub="Map SSA disability evidence to VA service-connected evidence context without treating the systems as the same." badge="VA ≠ SSA">
+        <div style={{ padding: "10px 12px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0", marginBottom: 12 }}>
+          <strong style={{ display: "block", color: "#8a6319", fontSize: 12 }}>Separate systems</strong>
+          <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12, lineHeight: 1.45 }}>
+            SSDI and VA compensation use different rules. This tool organizes overlapping evidence for education and VSO preparation only.
+          </p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginBottom: 12 }} className="nonVaLaneGrid">
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
+            <span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>SSA documents</span>
+            <div style={{ fontSize: 30, fontWeight: 950, lineHeight: 1.1 }}>{ssdiDocs.length}</div>
+          </div>
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
+            <span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>Matched conditions</span>
+            <div style={{ fontSize: 30, fontWeight: 950, lineHeight: 1.1 }}>{matched.length}</div>
+          </div>
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
+            <span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>Readiness</span>
+            <div style={{ fontSize: 20, fontWeight: 950, lineHeight: 1.25 }}>{overlapLabel}</div>
+          </div>
+        </div>
+
+        <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Select Conditions SSA Recognized or Discussed</h3>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 12 }}>
+          {graphConditions.map((condition) => (
+            <button key={condition.id} onClick={() => setSelected((prev) => prev.includes(condition.name) ? prev.filter((name) => name !== condition.name) : [...prev, condition.name])} style={{ padding: "6px 10px", borderRadius: 6, border: `1.5px solid ${selected.includes(condition.name) ? "#267a56" : "#d9dfd5"}`, background: selected.includes(condition.name) ? "#dff3e7" : "#fff", color: selected.includes(condition.name) ? "#267a56" : "#667184", fontWeight: selected.includes(condition.name) ? 800 : 500, fontSize: 12, cursor: "pointer" }}>
+              {condition.name}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }} className="nonVaLaneGrid">
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+            <strong style={{ fontSize: 13 }}>Matched VA / SSA conditions</strong>
+            {matched.map((condition) => <p key={condition.id} style={{ margin: "5px 0 0", color: "#667184", fontSize: 12 }}>{condition.name} <span style={{ color: "#267a56" }}>VA-adjudicated + SSA-recognized</span></p>)}
+            {!matched.length && <p style={{ margin: "5px 0 0", color: "#667184", fontSize: 12 }}>None selected yet.</p>}
+          </div>
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+            <strong style={{ fontSize: 13 }}>Not matched yet</strong>
+            {unmatched.map((condition) => <p key={condition.id} style={{ margin: "5px 0 0", color: "#667184", fontSize: 12 }}>{condition.name} <span>research evidence lane</span></p>)}
+          </div>
+        </div>
+
+        <h3 style={{ margin: "12px 0 8px", fontSize: 14 }}>Evidence Readiness</h3>
+        {checklist.map((item) => (
+          <div key={item.label} style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 7 }}>
+            <div>
+              <strong style={{ fontSize: 13 }}>{item.label}</strong>
+              <p style={{ margin: "2px 0 0", color: "#667184", fontSize: 11 }}>{item.note}</p>
+            </div>
+            <Pill label={item.status} />
+          </div>
+        ))}
+      </Card>
+
+      <Card title="SSDI Application / Records Assistance" sub="Preparation steps for applying, retrieving records, or using an existing award for evidence context." badge="Educational">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }} className="nonVaLaneGrid">
+          {ssdiApplicationPhases.map((phase) => (
+            <div key={phase.phase} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+              <strong style={{ display: "block", fontSize: 14, marginBottom: 8 }}>{phase.phase}</strong>
+              {phase.steps.map((step) => (
+                <div key={step.title} style={{ padding: "8px 0", borderTop: "1px solid #edf0ea" }}>
+                  <Pill label={step.status} />
+                  <strong style={{ display: "block", marginTop: 5, fontSize: 12 }}>{step.title}</strong>
+                  <p style={{ margin: "2px 0 0", color: "#667184", fontSize: 11, lineHeight: 1.4 }}>{step.detail}</p>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       </Card>
     </div>
   );

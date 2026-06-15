@@ -1,6 +1,6 @@
 import { signOut } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
-import { VeteranDashboard, KnowledgeGraphLab, ClaimReviewCoach, DocumentTranslator, NonVaBenefits, SecondaryOpportunityExplorer, RatingGapAnalyzer, VSOPacketGenerator } from "@/components/VeteranDashboard";
+import { VeteranDashboard, KnowledgeGraphLab, ClaimReviewCoach, DocumentTranslator, NonVaBenefits, SecondaryOpportunityExplorer, RatingGapAnalyzer, VSOPacketGenerator, SSDIEvidenceMapper } from "@/components/VeteranDashboard";
 import { AuthButtons } from "@/components/AuthButtons";
 import { ProfileForm } from "@/components/ProfileForm";
 import { DocumentUpload } from "@/components/DocumentUpload";
@@ -98,6 +98,7 @@ export default async function Home() {
             ["CP", "Claims Preparation", "#claims-preparation"],
             ["RG", "Rating Gap", "#rating-gap-analyzer"],
             ["SO", "Secondary Explorer", "#secondary-opportunity-explorer"],
+            ["SS", "SSDI Mapper", "#ssdi-evidence-mapper"],
             ["VP", "VSO Packet", "#vso-packet-generator"],
             ["DO", "Document Organization", "#document-organization"],
             ["BE", "Benefit Education", "#benefit-education"],
@@ -247,6 +248,9 @@ export default async function Home() {
         </section>
         <section id="secondary-opportunity-explorer" className="anchorSection">
           <SecondaryOpportunityExplorer documents={documents || []} />
+        </section>
+        <section id="ssdi-evidence-mapper" className="anchorSection">
+          <SSDIEvidenceMapper documents={documents || []} />
         </section>
         <section id="vso-packet-generator" className="anchorSection">
           <VSOPacketGenerator profile={profile} documents={documents || []} />
