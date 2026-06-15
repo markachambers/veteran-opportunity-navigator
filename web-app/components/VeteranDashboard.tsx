@@ -328,6 +328,81 @@ const seasonalPerks = [
   },
 ];
 
+const possibilityLibrary = [
+  {
+    category: "Disability Compensation",
+    initials: "DC",
+    stage: "Core VA",
+    examples: ["Current ratings", "Increases", "Secondary conditions", "Presumptives", "Residuals", "Appeals / supplemental review"],
+    trigger: "A veteran has service-connected conditions, new symptoms, worsening, or missing decision/rating details.",
+    evidence: ["Latest rating decision", "Medical treatment records", "Symptom logs", "Functional impact statement"],
+    ask: "Which current conditions, secondary pathways, or residuals should be reviewed with an accredited representative?",
+  },
+  {
+    category: "TDIU",
+    initials: "IU",
+    stage: "Work impact",
+    examples: ["Unemployability review", "Work history", "Employer forms", "Vocational evidence", "SSDI overlap"],
+    trigger: "A veteran is unemployed, on SSDI, losing work, or unable to maintain substantially gainful employment because of service-connected conditions.",
+    evidence: ["Work timeline", "SSDI/BPQY records", "Provider notes", "VA Form 21-8940 discussion", "Employer Form 21-4192 discussion"],
+    ask: "Should TDIU be discussed, and how does it compare with schedular review for this veteran's goals?",
+  },
+  {
+    category: "Health Care",
+    initials: "HC",
+    stage: "Care access",
+    examples: ["VA health care", "Priority groups", "Prescriptions", "Travel reimbursement", "Foreign Medical Program", "Caregiver support"],
+    trigger: "A veteran needs treatment, medication, travel support, overseas care, or caregiver/family support.",
+    evidence: ["Enrollment status", "Medication list", "FMP letter", "Appointment history", "Travel receipts"],
+    ask: "What care access, travel, prescription, or overseas-care benefits should be checked?",
+  },
+  {
+    category: "Housing / Property",
+    initials: "HO",
+    stage: "Home and taxes",
+    examples: ["VA home loan", "Funding-fee exemption", "Entitlement restoration", "Property tax", "Adaptive housing", "Homelessness prevention"],
+    trigger: "A veteran owns, rents, plans to buy, needs accessibility support, or may qualify for property-tax relief.",
+    evidence: ["COE", "Mortgage/rental status", "County", "P&T status", "Disability rating proof"],
+    ask: "Which housing, loan, county tax, or accessibility programs should be investigated?",
+  },
+  {
+    category: "Education / Training",
+    initials: "ED",
+    stage: "Next chapter",
+    examples: ["GI Bill", "VR&E", "State tuition waivers", "Certifications", "Boots to Business", "Dependent education"],
+    trigger: "A veteran or family member wants training, college, business skills, certifications, or a new career path.",
+    evidence: ["Service dates", "Disability rating", "Education history", "Career goals", "Dependent status"],
+    ask: "What education, training, business, or family education lanes match this profile?",
+  },
+  {
+    category: "Employment / Business",
+    initials: "EB",
+    stage: "Income path",
+    examples: ["Federal preference", "Schedule A", "State hiring preference", "Veteran-owned business", "SBA resources", "Licensing fee waivers"],
+    trigger: "A veteran wants employment, self-employment, consulting, contracting, or business formation support.",
+    evidence: ["Civil-service letter", "Resume", "Work history", "Business goals", "State license needs"],
+    ask: "Which job, federal hiring, business, or occupational licensing advantages should be checked?",
+  },
+  {
+    category: "Family / Survivor",
+    initials: "FS",
+    stage: "Household",
+    examples: ["Dependents", "Spouse benefits", "CHAMPVA", "DEA", "DIC", "Caregiver program", "Burial / memorial"],
+    trigger: "A veteran has a spouse, dependents, caregiver, survivor questions, P&T status, or end-of-life planning needs.",
+    evidence: ["Marriage/dependent records", "P&T status", "Household needs", "Caregiver role", "Death/burial planning docs"],
+    ask: "Which family, survivor, dependent, caregiver, or memorial benefits should be explained?",
+  },
+  {
+    category: "State / Local / Perks",
+    initials: "SL",
+    stage: "Quality of life",
+    examples: ["DMV", "Parks", "Hunting/fishing", "County VSO", "Amusement parks", "Memorial Day / Veterans Day offers"],
+    trigger: "A veteran changes state/county, travels, buys a vehicle, visits parks, or wants everyday savings and local help.",
+    evidence: ["State", "County", "Veteran ID", "DD-214", "VA rating proof", "ID.me/SheerID status"],
+    ask: "What state, county, recreation, DMV, and seasonal benefits should be checked before the next life event?",
+  },
+];
+
 const lifeEvents = [
   { when: "1985-1988", event: "Air Force service", evidence: "DD-214 / service verification", impact: "Eligibility foundation", status: "Verified", detail: "Service records verify honorable Air Force service." },
   { when: "~2007", event: "First aneurysm history", evidence: "Hospital records needed", impact: "Major", status: "Unconfirmed", detail: "Exact event, records, facility, and diagnosis timeline needed." },
@@ -1502,6 +1577,116 @@ export function NonVaBenefits({ profile }: { profile: Profile }) {
               <p style={{ margin: "7px 0 0", color: "#667184", fontSize: 12, lineHeight: 1.4 }}>{item.text}</p>
             </div>
           ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+export function BenefitsPossibilityLibrary({ profile, documents = [] }: { profile: Profile; documents?: Doc[] }) {
+  const [activeCategory, setActiveCategory] = useState(possibilityLibrary[0].category);
+  const active = possibilityLibrary.find((item) => item.category === activeCategory) || possibilityLibrary[0];
+  const state = stateDisplay(profile?.state);
+  const branch = profile?.branch || "Not entered";
+  const rating = ratingDisplay(profile?.current_rating);
+  const workStatus = profile?.work_status || "Not entered";
+  const dependents = profile?.dependent_status || "Not entered";
+  const documentNames = documents.map((doc) => `${doc.category} ${doc.file_name}`.toLowerCase()).join(" ");
+
+  function evidenceStatusFor(label: string) {
+    const normalized = label.toLowerCase();
+    const hints: Record<string, RegExp> = {
+      rating: /rating|decision|benefit summary|benefit_summary/,
+      medical: /medical|treatment|medication|exam|therapy|mri|imaging|sleep|mental|neurology/,
+      symptom: /symptom|log|statement|impact|flare/,
+      functional: /functional|impact|statement|work|employment/,
+      work: /work|employment|job|wage|earnings|ssdi|ssa/,
+      ssdi: /ssdi|ssa|bpqy|social security/,
+      coe: /coe|certificate|eligibility|loan|mortgage/,
+      county: /county|property|tax|homestead/,
+      fmp: /foreign medical|fmp/,
+      service: /dd214|dd-214|service|proof/,
+      civil: /civil|preference|federal/,
+      dependent: /dependent|spouse|marriage|child/,
+    };
+    const key = Object.keys(hints).find((hint) => normalized.includes(hint));
+    if (!key) return "Check";
+    return hints[key].test(documentNames) ? "Found" : "Missing";
+  }
+
+  const profileSignals = [
+    { label: "Branch", value: branch },
+    { label: "State", value: state },
+    { label: "Rating", value: rating },
+    { label: "Work", value: workStatus },
+    { label: "Dependents", value: dependents || "None" },
+  ];
+
+  return (
+    <div style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", color: "#172132" }}>
+      <Card title="Benefits Possibility Library" sub="A plain-language map of VA, state, federal, family, work, housing, and quality-of-life benefits veterans may not know to ask about." badge="Education map">
+        <div style={{ padding: "10px 12px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0", marginBottom: 12 }}>
+          <strong style={{ display: "block", color: "#8a6319", fontSize: 12 }}>No entitlement decision</strong>
+          <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12, lineHeight: 1.45 }}>
+            This library teaches possibilities and questions to ask. It does not determine eligibility, recommend claims, or replace an accredited VSO, attorney, benefits counselor, agency, or qualified representative.
+          </p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 8, marginBottom: 12 }} className="nonVaStatsGrid">
+          {profileSignals.map((signal) => (
+            <div key={signal.label} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 10, background: "#f9fbf7" }}>
+              <span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>{signal.label}</span>
+              <div style={{ fontSize: 14, fontWeight: 900, lineHeight: 1.25, marginTop: 3 }}>{signal.value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, marginBottom: 12 }} className="nonVaStatsGrid">
+          {possibilityLibrary.map((item) => (
+            <button key={item.category} type="button" onClick={() => setActiveCategory(item.category)} style={{ minHeight: 72, borderRadius: 8, border: `1.5px solid ${active.category === item.category ? "#267a56" : "#d9dfd5"}`, background: active.category === item.category ? "#dff3e7" : "#fff", cursor: "pointer", textAlign: "left" as const, padding: "10px 11px" }}>
+              <span style={{ display: "block", color: "#267a56", fontSize: 11, fontWeight: 900 }}>{item.initials}</span>
+              <strong style={{ display: "block", fontSize: 13, color: "#172132", marginTop: 3 }}>{item.category}</strong>
+              <span style={{ display: "block", color: "#667184", fontSize: 11, marginTop: 2 }}>{item.stage}</span>
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: 8 }} className="nonVaLaneGrid">
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start", marginBottom: 8 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16 }}>{active.category}</h3>
+                <p style={{ margin: "2px 0 0", color: "#667184", fontSize: 12 }}>{active.trigger}</p>
+              </div>
+              <Pill label={active.stage} />
+            </div>
+            <strong style={{ display: "block", fontSize: 13, marginBottom: 6 }}>Possibilities to learn about</strong>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 10 }}>
+              {active.examples.map((example) => (
+                <span key={example} style={{ fontSize: 11, fontWeight: 750, padding: "4px 7px", borderRadius: 6, background: "#f4f6f3", color: "#172132", border: "1px solid #edf0ea" }}>{example}</span>
+              ))}
+            </div>
+            <div style={{ padding: "9px 10px", borderRadius: 8, border: "1px solid #edf0ea", background: "#f9fbf7" }}>
+              <span style={{ display: "block", color: "#267a56", fontSize: 10, fontWeight: 850, textTransform: "uppercase" as const }}>Question to ask</span>
+              <p style={{ margin: "3px 0 0", color: "#172132", fontSize: 12, lineHeight: 1.45 }}>{active.ask}</p>
+            </div>
+          </div>
+
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+            <strong style={{ display: "block", fontSize: 13, marginBottom: 8 }}>Evidence to look for</strong>
+            {active.evidence.map((item) => (
+              <div key={item} style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", borderTop: "1px solid #edf0ea", padding: "8px 0" }}>
+                <span style={{ color: "#667184", fontSize: 12 }}>{item}</span>
+                <Pill label={evidenceStatusFor(item)} />
+              </div>
+            ))}
+            <div style={{ marginTop: 8, padding: "9px 10px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0" }}>
+              <strong style={{ display: "block", color: "#8a6319", fontSize: 12 }}>Product rule</strong>
+              <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 11, lineHeight: 1.4 }}>
+                The app should tell the veteran what door exists, what proof may be needed, and who can confirm it.
+              </p>
+            </div>
+          </div>
         </div>
       </Card>
     </div>

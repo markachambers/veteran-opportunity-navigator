@@ -1,6 +1,6 @@
 import { signOut } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
-import { VeteranDashboard, KnowledgeGraphLab, ClaimReviewCoach, DocumentTranslator, NonVaBenefits, SecondaryOpportunityExplorer, RatingGapAnalyzer, VSOPacketGenerator, SSDIEvidenceMapper, TDIUReadinessExplorer } from "@/components/VeteranDashboard";
+import { VeteranDashboard, KnowledgeGraphLab, ClaimReviewCoach, DocumentTranslator, NonVaBenefits, SecondaryOpportunityExplorer, RatingGapAnalyzer, VSOPacketGenerator, SSDIEvidenceMapper, TDIUReadinessExplorer, BenefitsPossibilityLibrary } from "@/components/VeteranDashboard";
 import { AuthButtons } from "@/components/AuthButtons";
 import { ProfileForm } from "@/components/ProfileForm";
 import { DocumentUpload } from "@/components/DocumentUpload";
@@ -94,6 +94,7 @@ export default async function Home() {
           {[
             ["BD", "Benefits Discovery", "#benefits-discovery"],
             ["ES", "Eligibility Screening", "#eligibility-screening"],
+            ["PL", "Possibility Library", "#possibility-library"],
             ["NV", "Non-VA Benefits", "#non-va-benefits"],
             ["CP", "Claims Preparation", "#claims-preparation"],
             ["RG", "Rating Gap", "#rating-gap-analyzer"],
@@ -235,6 +236,10 @@ export default async function Home() {
             <div className="intakeSignal">{documents?.length || 0} uploaded</div>
           </div>
           <DocumentUpload userId={user.id} />
+        </section>
+
+        <section id="possibility-library" className="anchorSection">
+          <BenefitsPossibilityLibrary profile={profile} documents={documents || []} />
         </section>
 
         <section id="non-va-benefits" className="anchorSection">
