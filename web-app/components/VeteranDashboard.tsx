@@ -611,11 +611,64 @@ const educationDisclaimer = "Educational use only. Review all potential claims w
 const vaDataDecoderDisclaimer = "Veteran Journey Navigator is an educational preparation tool. It does not file claims, submit evidence, access VA systems, provide legal advice, or replace an accredited VSO, attorney, or representative. All claim decisions are made solely by the Department of Veterans Affairs.";
 
 type DecodedCondition = {
+  id: string;
   condition: string;
   rating: number | null;
   effectiveDate: string;
   staticIndicator: string;
   diagnosticCode: string;
+  codeName?: string;
+  decision?: string;
+  category: string;
+  priority: "high" | "medium" | "low";
+  evidenceItems: EvidenceItem[];
+  notes: string;
+};
+
+type EvidenceItem = {
+  id: string;
+  label: string;
+  done: boolean;
+};
+
+type DecodedDenial = {
+  id: string;
+  condition: string;
+  diagnosticCode: string;
+  codeName?: string;
+  category: string;
+  reviewLevel: "Representative review" | "Prior denial";
+  notes: string;
+};
+
+type DecodedClaim = {
+  id: string;
+  filed: string;
+  status: string;
+  phase: string;
+  developmentLetterSent: boolean;
+  decisionLetterSent: boolean;
+  evidenceFile?: string;
+  evidenceCreated?: string;
+  evidenceExpires?: string;
+};
+
+type DecodedFormDraft = {
+  form: string;
+  name: string;
+  savedAt?: string;
+  expires?: string;
+  attemptedSubmit: boolean;
+};
+
+type VaDecoderAnalysis = {
+  combinedRating: number | null;
+  combinedEffectiveDate?: string;
+  legalEffectiveDate?: string;
+  conditions: DecodedCondition[];
+  denials: DecodedDenial[];
+  activeClaims: DecodedClaim[];
+  formDrafts: DecodedFormDraft[];
 };
 
 const diagnosticCodeDescriptions: Record<string, string> = {
@@ -636,6 +689,20 @@ const diagnosticCodeDescriptions: Record<string, string> = {
 function normalizedObjectValue(value: unknown) {
   if (value === null || value === undefined) return "";
   return String(value).trim();
+}
+
+function displayDate(value?: string | null) {
+  if (!value) return "Not found";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toISOString().slice(0, 10);
+}
+
+function displayDateTime(value?: string | number | null, seconds = false) {
+  if (!value) return undefined;
+  const date = typeof value === "number" ? new Date(seconds ? value * 1000 : value) : new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toISOString().slice(0, 10);
 }
 
 function numberFromUnknown(value: unknown) {
@@ -662,7 +729,213 @@ function collectObjects(value: unknown, output: Record<string, unknown>[] = []) 
   return output;
 }
 
-function decodeVaJson(value: unknown) {
+function mergeAnalyses(base: VaDecoderAnalysis, next: VaDecoderAnalysis): VaDecoderAnalysis {
+  const conditionMap = new Map<string, DecodedCondition>();
+  [...base.conditions, ...next.conditions].forEach((condition) => conditionMap.set(condition.id || `${condition.condition}-${condition.diagnosticCode}`, condition));
+  const denialMap = new Map<string, DecodedDenial>();
+  [...base.denials, ...next.denials].forEach((denial) => denialMap.set(denial.id || `${denial.condition}-${denial.diagnosticCode}`, denial));
+  const claimMap = new Map<string, DecodedClaim>();
+  [...base.activeClaims, ...next.activeClaims].forEach((claim) => claimMap.set(claim.id, claim));
+  const draftMap = new Map<string, DecodedFormDraft>();
+  [...base.formDrafts, ...next.formDrafts].forEach((draft) => draftMap.set(draft.form, draft));
+
+  return {
+    combinedRating: next.combinedRating ?? base.combinedRating,
+    combinedEffectiveDate: next.combinedEffectiveDate || base.combinedEffectiveDate,
+    legalEffectiveDate: next.legalEffectiveDate || base.legalEffectiveDate,
+    conditions: Array.from(conditionMap.values()),
+    denials: Array.from(denialMap.values()),
+    activeClaims: Array.from(claimMap.values()),
+    formDrafts: Array.from(draftMap.values()),
+  };
+}
+
+function blankVaAnalysis(): VaDecoderAnalysis {
+  return { combinedRating: null, conditions: [], denials: [], activeClaims: [], formDrafts: [] };
+}
+
+function categoryFromCondition(name: string, code?: string) {
+  const text = `${name} ${code || ""}`.toLowerCase();
+  if (/sleep|apnea|sinus|respiratory|651|684/.test(text)) return "Respiratory";
+  if (/depress|ptsd|anxiety|mental|mood|94/.test(text)) return "Mental health";
+  if (/radicul|sciatic|nerve|paralysis|85/.test(text)) return "Neurological";
+  if (/spine|lumbar|cervical|neck|back|knee|arthritis|strain|fasciitis|hand|wrist|52|50/.test(text)) return "Musculoskeletal";
+  if (/tinnitus|hearing|ear|62|61/.test(text)) return "Auditory";
+  if (/skin|scar|barbae|dermat|78/.test(text)) return "Dermatological";
+  if (/heart|hypertension|aortic|aneurysm|cardio|70|71/.test(text)) return "Cardiovascular";
+  if (/bowel|colon|rectal|stomach|gastro|73/.test(text)) return "Gastrointestinal";
+  return "General";
+}
+
+function priorityFromCondition(condition: string, rating: number | null, isServiceConnected = true): "high" | "medium" | "low" {
+  const text = condition.toLowerCase();
+  if (!isServiceConnected && /aneurysm|heart|hypertension|headache|migraine|hearing|nerve/.test(text)) return "high";
+  if ((rating ?? 0) >= 30 || /mental|depress|sleep apnea|radicul|nerve/.test(text)) return "high";
+  if ((rating ?? 0) >= 10 || /spine|neck|back|knee|tinnitus|hearing/.test(text)) return "medium";
+  return "low";
+}
+
+function evidenceTemplateForCondition(condition: string, category: string, serviceConnected: boolean): EvidenceItem[] {
+  const lower = condition.toLowerCase();
+  const base: EvidenceItem[] = [
+    { id: "diagnosis", label: serviceConnected ? "Diagnosis or condition recognized in VA data" : "Prior denial identified in VA data", done: true },
+  ];
+  if (!serviceConnected) {
+    return [
+      ...base,
+      { id: "decision", label: "Prior decision/reasons reviewed", done: false },
+      { id: "new-relevant", label: "New and relevant evidence identified", done: false },
+      { id: "rep-review", label: "Reviewed with accredited representative", done: false },
+    ];
+  }
+  if (category === "Respiratory") {
+    return [...base, { id: "treatment", label: "Current treatment records", done: false }, { id: "device", label: lower.includes("apnea") ? "CPAP or sleep clinic records" : "Specialist treatment records", done: false }, { id: "symptoms", label: "Current symptom statement", done: false }, { id: "functional", label: "Functional impact documented", done: false }];
+  }
+  if (category === "Mental health") {
+    return [...base, { id: "treatment", label: "Current treatment or therapy records", done: false }, { id: "medication", label: "Medication history", done: false }, { id: "occupational", label: "Occupational impact documentation", done: false }, { id: "social", label: "Social or daily-function impact statement", done: false }];
+  }
+  if (category === "Neurological") {
+    return [...base, { id: "exam", label: "Recent neuro exam or specialist notes", done: false }, { id: "imaging", label: "Imaging or nerve study", done: false }, { id: "severity", label: "Symptom frequency and severity statement", done: false }, { id: "functional", label: "Functional limitation documented", done: false }];
+  }
+  if (category === "Musculoskeletal") {
+    return [...base, { id: "imaging", label: "Recent imaging or exam", done: false }, { id: "rom", label: "Range-of-motion or flare-up documentation", done: false }, { id: "treatment", label: "Current treatment records", done: false }, { id: "functional", label: "Functional limitation statement", done: false }];
+  }
+  if (category === "Auditory") {
+    return [...base, { id: "audiology", label: "Recent audiology or ENT records", done: false }, { id: "symptoms", label: "Symptom documentation", done: false }, { id: "related", label: "Related symptoms to discuss with representative", done: false }];
+  }
+  if (category === "Dermatological") {
+    return [...base, { id: "treatment", label: "Active treatment records", done: false }, { id: "photos", label: "Visual documentation", done: false }, { id: "frequency", label: "Flare frequency or medication history", done: false }];
+  }
+  return [...base, { id: "treatment", label: "Current treatment records", done: false }, { id: "symptoms", label: "Current symptom statement", done: false }, { id: "functional", label: "Functional impact documented", done: false }];
+}
+
+function conditionNote(condition: DecodedCondition) {
+  const rating = condition.rating !== null ? `${condition.rating}%` : "non-compensable or not shown";
+  const staticText = condition.staticIndicator === "Yes" ? "marked static in the imported VA data" : condition.staticIndicator === "No" ? "not marked static in the imported VA data" : "static status not found";
+  return `${condition.condition} is listed as service connected at ${rating}, effective ${condition.effectiveDate}. It is ${staticText}. Use this row to organize evidence and questions for an accredited representative.`;
+}
+
+function denialNote(denial: DecodedDenial) {
+  if (denial.reviewLevel === "Representative review") {
+    return "Prior denial found. This is a locked-door topic, not a fresh unexplored room. Ask an accredited representative what evidence or procedural path would be required before taking action.";
+  }
+  return "Prior denial found. Keep it separate from new opportunity rooms and review the original denial reason before any next step.";
+}
+
+function decodeRatedDisabilities(value: unknown): VaDecoderAnalysis {
+  const attrs = (value as { data?: { attributes?: Record<string, unknown> } })?.data?.attributes;
+  const rows = Array.isArray(attrs?.individual_ratings) ? attrs.individual_ratings as Record<string, unknown>[] : [];
+  if (!attrs || !rows.length) return blankVaAnalysis();
+
+  const conditions: DecodedCondition[] = [];
+  const denials: DecodedDenial[] = [];
+  rows.forEach((row, index) => {
+    const decision = normalizedObjectValue(row.decision);
+    const name = normalizedObjectValue(row.diagnostic_text || row.diagnostic_type_name || row.name || row.condition);
+    if (!name) return;
+    const code = normalizedObjectValue(row.diagnostic_type_code || row.hyph_diagnostic_type_code || row.code).match(/\d{4}/)?.[0] || "Not found";
+    const category = categoryFromCondition(name, code);
+    const id = normalizedObjectValue(row.disability_rating_id) || `${name}-${code}-${index}`;
+    if (/service connected/i.test(decision) && !/^not service connected$/i.test(decision)) {
+      const rating = numberFromUnknown(row.rating_percentage);
+      const condition: DecodedCondition = {
+        id,
+        condition: name.replace(/\b\w/g, (letter) => letter.toUpperCase()),
+        rating,
+        effectiveDate: displayDate(normalizedObjectValue(row.effective_date)),
+        staticIndicator: typeof row.static_ind === "boolean" ? (row.static_ind ? "Yes" : "No") : "Unknown",
+        diagnosticCode: code,
+        codeName: normalizedObjectValue(row.diagnostic_type_name),
+        decision,
+        category,
+        priority: priorityFromCondition(name, rating, true),
+        evidenceItems: evidenceTemplateForCondition(name, category, true),
+        notes: "",
+      };
+      condition.notes = conditionNote(condition);
+      conditions.push(condition);
+    } else if (/not service connected|denied/i.test(decision)) {
+      const reviewLevel = priorityFromCondition(name, null, false) === "high" ? "Representative review" : "Prior denial";
+      const denial: DecodedDenial = {
+        id,
+        condition: name.replace(/\b\w/g, (letter) => letter.toUpperCase()),
+        diagnosticCode: code,
+        codeName: normalizedObjectValue(row.diagnostic_type_name),
+        category,
+        reviewLevel,
+        notes: "",
+      };
+      denial.notes = denialNote(denial);
+      denials.push(denial);
+    }
+  });
+
+  return {
+    combinedRating: numberFromUnknown(attrs.combined_disability_rating),
+    combinedEffectiveDate: displayDate(normalizedObjectValue(attrs.combined_effective_date)),
+    legalEffectiveDate: displayDate(normalizedObjectValue(attrs.legal_effective_date)),
+    conditions,
+    denials,
+    activeClaims: [],
+    formDrafts: [],
+  };
+}
+
+function humanizeClaimPhase(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function decodeClaims(value: unknown): VaDecoderAnalysis {
+  const rows = Array.isArray((value as { data?: unknown }).data) ? (value as { data: Record<string, unknown>[] }).data : [];
+  const activeClaims = rows.flatMap((claim) => {
+    const attrs = claim.attributes as Record<string, unknown> | undefined;
+    if (!attrs) return [];
+    const closeDate = normalizedObjectValue(attrs.closeDate);
+    const status = normalizedObjectValue(attrs.status);
+    if (closeDate || /complete/i.test(status)) return [];
+    const phaseDates = attrs.claimPhaseDates as Record<string, unknown> | undefined;
+    const submissions = Array.isArray(attrs.evidenceSubmissions) ? attrs.evidenceSubmissions as Record<string, unknown>[] : [];
+    const submission = submissions[0];
+    return [{
+      id: normalizedObjectValue(claim.id || attrs.id),
+      filed: displayDate(normalizedObjectValue(attrs.claimDate)),
+      status: status || "Active",
+      phase: humanizeClaimPhase(normalizedObjectValue(phaseDates?.phaseType) || "Active claim"),
+      developmentLetterSent: Boolean(attrs.developmentLetterSent),
+      decisionLetterSent: Boolean(attrs.decisionLetterSent),
+      evidenceFile: normalizedObjectValue(submission?.file_name),
+      evidenceCreated: displayDateTime(normalizedObjectValue(submission?.created_at)),
+      evidenceExpires: displayDateTime(normalizedObjectValue(submission?.delete_date)),
+    }];
+  });
+  return { ...blankVaAnalysis(), activeClaims };
+}
+
+function decodeProfileDrafts(value: unknown): VaDecoderAnalysis {
+  const attrs = (value as { data?: { attributes?: Record<string, unknown> } })?.data?.attributes;
+  const forms = Array.isArray(attrs?.in_progress_forms) ? attrs.in_progress_forms as Record<string, unknown>[] : [];
+  const formDrafts = forms.flatMap((form) => {
+    const formId = normalizedObjectValue(form.form);
+    if (!formId) return [];
+    const metadata = form.metadata as Record<string, unknown> | undefined;
+    const submission = metadata?.submission as Record<string, unknown> | undefined;
+    return [{
+      form: formId,
+      name: formId === "21-8940" ? "VA Form 21-8940 (TDIU / IU application)" : `VA Form ${formId}`,
+      savedAt: displayDateTime(metadata?.saved_at as number | undefined),
+      expires: displayDateTime(form.expiresAt as number | undefined, true),
+      attemptedSubmit: Boolean(submission?.has_attempted_submit),
+    }];
+  });
+  return { ...blankVaAnalysis(), formDrafts };
+}
+
+function decodeVaJson(value: unknown): VaDecoderAnalysis {
+  let analysis = mergeAnalyses(blankVaAnalysis(), decodeRatedDisabilities(value));
+  analysis = mergeAnalyses(analysis, decodeClaims(value));
+  analysis = mergeAnalyses(analysis, decodeProfileDrafts(value));
+  if (analysis.conditions.length || analysis.denials.length || analysis.activeClaims.length || analysis.formDrafts.length || analysis.combinedRating !== null) return analysis;
+
   const records = collectObjects(value);
   const combinedCandidates = ["combinedRating", "combinedDisabilityRating", "combinedEvaluation", "totalCombinedRating", "combinedPercentage", "combined_percent", "combined_rating"];
   let combinedRating: number | null = null;
@@ -696,10 +969,24 @@ function decodeVaJson(value: unknown) {
     const key = `${name.toLowerCase()}::${rating ?? ""}::${effectiveDate}::${diagnosticCode}`;
     if (seen.has(key)) return [];
     seen.add(key);
-    return [{ condition: name, rating, effectiveDate: effectiveDate || "Not found", staticIndicator, diagnosticCode: diagnosticCode || "Not found" }];
+    const category = categoryFromCondition(name, diagnosticCode);
+    const condition: DecodedCondition = {
+      id: key,
+      condition: name,
+      rating,
+      effectiveDate: effectiveDate || "Not found",
+      staticIndicator,
+      diagnosticCode: diagnosticCode || "Not found",
+      category,
+      priority: priorityFromCondition(name, rating, true),
+      evidenceItems: evidenceTemplateForCondition(name, category, true),
+      notes: "",
+    };
+    condition.notes = conditionNote(condition);
+    return [condition];
   });
 
-  return { combinedRating, conditions };
+  return { ...blankVaAnalysis(), combinedRating, conditions };
 }
 
 function combineVaRatings(ratings: number[]) {
@@ -732,38 +1019,56 @@ function diagnosticDescription(code: string) {
 
 export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
   const [rawJson, setRawJson] = useState("");
-  const [decoded, setDecoded] = useState<{ combinedRating: number | null; conditions: DecodedCondition[] } | null>(null);
+  const [decoded, setDecoded] = useState<VaDecoderAnalysis | null>(null);
   const [parseError, setParseError] = useState("");
-  const loweredInput = rawJson.toLowerCase();
+  const [decoderTab, setDecoderTab] = useState<"matrix" | "denials" | "math">("matrix");
+  const [openConditionId, setOpenConditionId] = useState<string | null>(null);
+  const [openDenialId, setOpenDenialId] = useState<string | null>(null);
+  const [conditionFilter, setConditionFilter] = useState<"all" | "high" | "gaps">("all");
+  const [evidenceOverrides, setEvidenceOverrides] = useState<Record<string, Record<string, boolean>>>({});
+  const [whatChanged, setWhatChanged] = useState<Record<string, string>>({});
 
   function analyzeText(text: string) {
     setParseError("");
     try {
       const parsed = JSON.parse(text);
       const result = decodeVaJson(parsed);
-      setDecoded(result);
+      setDecoded((previous) => mergeAnalyses(previous || blankVaAnalysis(), result));
       setRawJson(text);
     } catch {
-      setDecoded(null);
       setParseError("Could not parse JSON. Check that the data begins with { or [ and contains valid JSON syntax.");
     }
   }
 
-  function handleFile(file?: File | null) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => analyzeText(String(reader.result || ""));
-    reader.readAsText(file);
+  function handleFiles(files?: FileList | null) {
+    if (!files?.length) return;
+    setParseError("");
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const text = String(reader.result || "");
+          const result = decodeVaJson(JSON.parse(text));
+          setDecoded((previous) => mergeAnalyses(previous || blankVaAnalysis(), result));
+          setRawJson((previous) => previous ? `${previous}\n\n${text}` : text);
+        } catch {
+          setParseError(`Could not parse ${file.name}. Check that it is a valid JSON file.`);
+        }
+      };
+      reader.readAsText(file);
+    });
   }
 
   function clearDecoder() {
     setRawJson("");
     setDecoded(null);
     setParseError("");
+    setEvidenceOverrides({});
+    setWhatChanged({});
   }
 
   function exportAnalysis() {
-    const payload = { exportedAt: new Date().toISOString(), disclaimer: vaDataDecoderDisclaimer, analysis: decoded };
+    const payload = { exportedAt: new Date().toISOString(), disclaimer: vaDataDecoderDisclaimer, whatChanged, analysis: decoded };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -773,7 +1078,36 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
     URL.revokeObjectURL(url);
   }
 
+  function itemDone(condition: DecodedCondition, item: EvidenceItem) {
+    return evidenceOverrides[condition.id]?.[item.id] ?? item.done;
+  }
+
+  function toggleEvidence(conditionId: string, itemId: string, currentValue: boolean) {
+    setEvidenceOverrides((previous) => ({
+      ...previous,
+      [conditionId]: {
+        ...(previous[conditionId] || {}),
+        [itemId]: !currentValue,
+      },
+    }));
+  }
+
+  function readiness(condition: DecodedCondition) {
+    if (!condition.evidenceItems.length) return 0;
+    const done = condition.evidenceItems.filter((item) => itemDone(condition, item)).length;
+    return Math.round((done / condition.evidenceItems.length) * 100);
+  }
+
+  function readinessColor(score: number) {
+    if (score >= 75) return { bg: "#dff3e7", bar: "#267a56", text: "#267a56" };
+    if (score >= 40) return { bg: "#fbefd0", bar: "#b98922", text: "#8a6319" };
+    return { bg: "#f8e2df", bar: "#b6504c", text: "#b6504c" };
+  }
+
   const conditions = decoded?.conditions || [];
+  const denials = decoded?.denials || [];
+  const activeClaims = decoded?.activeClaims || [];
+  const formDrafts = decoded?.formDrafts || [];
   const ratings = conditions.map((condition) => condition.rating).filter((rating): rating is number => typeof rating === "number");
   const combinedMath = combineVaRatings(ratings);
   const displayedCombined = decoded?.combinedRating ?? (ratings.length ? combinedMath.rounded : null);
@@ -781,8 +1115,16 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
   const oldest = [...datedConditions].sort((a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime()).slice(0, 3);
   const newest = [...datedConditions].sort((a, b) => new Date(b.effectiveDate).getTime() - new Date(a.effectiveDate).getTime()).slice(0, 3);
   const diagnosticCodes = Array.from(new Set(conditions.map((condition) => condition.diagnosticCode).filter((code) => code && code !== "Not found")));
+  const overallReadiness = conditions.length ? Math.round(conditions.reduce((sum, condition) => sum + readiness(condition), 0) / conditions.length) : 0;
+  const filteredConditions = conditions.filter((condition) => {
+    if (conditionFilter === "high") return condition.priority === "high";
+    if (conditionFilter === "gaps") return readiness(condition) < 50;
+    return true;
+  });
+  const representativeReviewDenials = denials.filter((denial) => denial.reviewLevel === "Representative review");
+  const otherDenials = denials.filter((denial) => denial.reviewLevel !== "Representative review");
   const opportunityTopics = [
-    conditions.some((condition) => /tinnitus/i.test(condition.condition)) ? "Headaches, migraines, vertigo, or balance symptoms as discussion topics related to tinnitus evidence" : "",
+    conditions.some((condition) => /tinnitus/i.test(condition.condition)) ? "Headache, migraine, vertigo, or balance symptoms as discussion topics related to tinnitus evidence" : "",
     conditions.some((condition) => /depression|ptsd|anxiety|mental/i.test(condition.condition)) ? "Mental health evaluation accuracy, occupational impairment, social impairment, and current treatment evidence" : "",
     conditions.some((condition) => /lumbar|cervical|spine|back|neck/i.test(condition.condition)) ? "Spine progression, range of motion, flare-ups, functional loss, and neurological symptoms" : "",
     conditions.some((condition) => /radiculopathy|sciatic|nerve/i.test(condition.condition)) ? "Radiculopathy progression, laterality, nerve studies, falls, weakness, or assistive device evidence" : "",
@@ -790,11 +1132,11 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
     conditions.length ? "Whether the current evidence accurately reflects severity, effective dates, and missing documentation" : "",
   ].filter(Boolean);
   const evidenceChecklist = [
-    { label: "Diagnosis", found: /diagnosis|diagnostic|condition|disability/i.test(rawJson) },
-    { label: "Treatment Records", found: /treatment|provider|appointment|medical|clinic/i.test(loweredInput) },
-    { label: "Symptom Log", found: /symptom|frequency|flare|log/i.test(loweredInput) },
-    { label: "Personal Statement", found: /personal statement|statement in support|lay statement/i.test(loweredInput) },
-    { label: "Functional Impact Statement", found: /functional|work impact|occupational|daily/i.test(loweredInput) },
+    { label: "Diagnosis", found: conditions.length > 0 },
+    { label: "Treatment Records", found: documents.some((doc) => /medical|treatment|record|surgery|medication/i.test(`${doc.file_name} ${doc.category}`)) },
+    { label: "Symptom Log", found: documents.some((doc) => /symptom|log|statement|personal/i.test(`${doc.file_name} ${doc.category}`)) },
+    { label: "Personal Statement", found: documents.some((doc) => /personal|statement/i.test(`${doc.file_name} ${doc.category}`)) },
+    { label: "Functional Impact Statement", found: Object.values(whatChanged).some(Boolean) || documents.some((doc) => /functional|impact|work|employment/i.test(`${doc.file_name} ${doc.category}`)) },
     { label: "Diagnostic Codes", found: diagnosticCodes.length > 0 },
   ];
   const packetSections = [
@@ -803,8 +1145,10 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
     { title: "Questions For My VSO", lines: opportunityTopics.slice(0, 5) },
     { title: "Documents Available", lines: documents.length ? documents.map((doc) => documentLabel(doc.category)).slice(0, 5) : ["No uploaded vault documents detected"] },
     { title: "Documents Missing", lines: evidenceChecklist.filter((item) => !item.found).map((item) => item.label) },
+    { title: "What Changed", lines: Object.entries(whatChanged).filter(([, value]) => value.trim()).slice(0, 5).map(([id, value]) => `${conditions.find((condition) => condition.id === id)?.condition || "Condition"}: ${value}`) },
     { title: "Next Actions", lines: ["Verify decoded fields against the original VA source", "Bring the packet to an accredited representative", "Do not enter VA credentials into this app"] },
   ];
+  const overallColors = readinessColor(overallReadiness);
 
   return (
     <div style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", color: "#172132" }}>
@@ -819,13 +1163,13 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
           <div>
             <label style={{ display: "block" }}>
               <span style={{ display: "block", fontSize: 12, fontWeight: 800, marginBottom: 5 }}>Paste VA JSON data</span>
-              <textarea value={rawJson} onChange={(event) => setRawJson(event.target.value)} placeholder='Paste JSON here, for example: {"combinedRating":90,"conditions":[...]}' style={{ width: "100%", minHeight: 180, border: "1px solid #d9dfd5", borderRadius: 8, padding: 10, fontSize: 12, resize: "vertical" as const, boxSizing: "border-box" as const }} />
+              <textarea value={rawJson} onChange={(event) => setRawJson(event.target.value)} placeholder='Paste one VA JSON export here, or upload rated_disabilities, benefits_claims, and user_profile JSON files together.' style={{ width: "100%", minHeight: 150, border: "1px solid #d9dfd5", borderRadius: 8, padding: 10, fontSize: 12, resize: "vertical" as const, boxSizing: "border-box" as const }} />
             </label>
             {parseError ? <p style={{ color: "#b6504c", fontSize: 12, margin: "6px 0 0" }}>{parseError}</p> : null}
           </div>
           <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
             <strong style={{ display: "block", fontSize: 13, marginBottom: 8 }}>Import controls</strong>
-            <input type="file" accept="application/json,.json" onChange={(event) => handleFile(event.target.files?.[0])} style={{ fontSize: 12, marginBottom: 10, maxWidth: "100%" }} />
+            <input type="file" accept="application/json,.json" multiple onChange={(event) => handleFiles(event.target.files)} style={{ fontSize: 12, marginBottom: 10, maxWidth: "100%" }} />
             <button type="button" onClick={() => analyzeText(rawJson)} style={{ width: "100%", minHeight: 36, border: "1px solid #267a56", borderRadius: 8, background: "#dff3e7", color: "#267a56", fontWeight: 850, cursor: "pointer", marginBottom: 8 }}>Analyze JSON</button>
             <button type="button" onClick={clearDecoder} style={{ width: "100%", minHeight: 34, border: "1px solid #d9dfd5", borderRadius: 8, background: "#fff", color: "#b6504c", fontWeight: 800, cursor: "pointer", marginBottom: 8 }}>Delete analysis results</button>
             <button type="button" onClick={exportAnalysis} disabled={!decoded} style={{ width: "100%", minHeight: 34, border: "1px solid #d9dfd5", borderRadius: 8, background: decoded ? "#fff" : "#f4f6f3", color: decoded ? "#172132" : "#667184", fontWeight: 800, cursor: decoded ? "pointer" : "not-allowed" }}>Export my decoded analysis</button>
@@ -837,8 +1181,8 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
           {[
             { label: "Combined rating", value: displayedCombined !== null ? `${displayedCombined}%` : "Not found" },
             { label: "Conditions found", value: String(conditions.length) },
-            { label: "Diagnostic codes", value: String(diagnosticCodes.length) },
-            { label: "Uploaded files in vault", value: String(documents.length) },
+            { label: "Prior denials", value: String(denials.length) },
+            { label: "Active claims", value: String(activeClaims.length) },
           ].map((item) => (
             <div key={item.label} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
               <span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>{item.label}</span>
@@ -848,32 +1192,189 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
         </div>
       </Card>
 
-      <Card title="Condition Table" sub="Fields found in the pasted or uploaded data. Verify all fields against the original VA source." badge={`${conditions.length} found`}>
-        {conditions.length ? (
-          <div style={{ overflowX: "auto", border: "1px solid #d9dfd5", borderRadius: 8 }}>
-            <table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse" as const }}>
-              <thead><tr style={{ background: "#f4f6f3" }}>{["Condition", "Rating", "Effective Date", "Static Indicator", "Diagnostic Code"].map((heading) => <th key={heading} style={{ padding: "9px 10px", textAlign: "left" as const, color: "#667184", fontSize: 11, textTransform: "uppercase" as const, borderBottom: "1px solid #d9dfd5" }}>{heading}</th>)}</tr></thead>
-              <tbody>
-                {conditions.map((condition) => (
-                  <tr key={`${condition.condition}-${condition.rating}-${condition.effectiveDate}-${condition.diagnosticCode}`}>
-                    <td style={{ padding: 10, borderBottom: "1px solid #edf0ea", fontSize: 12, fontWeight: 800 }}>{condition.condition}</td>
-                    <td style={{ padding: 10, borderBottom: "1px solid #edf0ea", fontSize: 12 }}>{condition.rating !== null ? `${condition.rating}%` : "Not found"}</td>
-                    <td style={{ padding: 10, borderBottom: "1px solid #edf0ea", fontSize: 12 }}>{condition.effectiveDate}</td>
-                    <td style={{ padding: 10, borderBottom: "1px solid #edf0ea", fontSize: 12 }}>{condition.staticIndicator}</td>
-                    <td style={{ padding: 10, borderBottom: "1px solid #edf0ea", fontSize: 12 }}>{condition.diagnosticCode}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {(activeClaims.length || formDrafts.length) ? (
+        <Card title="Claim Status Banner" sub="Imported from veteran-provided VA JSON. Verify against VA.gov." badge="Current VA data">
+          {activeClaims.map((claim) => (
+            <div key={claim.id} style={{ border: "1px solid #8bb8e8", borderRadius: 8, padding: "10px 12px", background: "#e6f1fb", marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" as const }}>
+                <strong style={{ color: "#185fa5", fontSize: 13 }}>Active claim ID {claim.id}</strong>
+                <Pill label={claim.phase} />
+              </div>
+              <p style={{ margin: "5px 0 0", color: "#185fa5", fontSize: 12 }}>Filed {claim.filed}. Development letter: {claim.developmentLetterSent ? "sent" : "not shown"}. Decision letter: {claim.decisionLetterSent ? "sent" : "not sent"}.</p>
+              {claim.evidenceFile ? <p style={{ margin: "5px 0 0", color: "#185fa5", fontSize: 12 }}>Evidence uploaded: <strong>{claim.evidenceFile}</strong>{claim.evidenceCreated ? ` on ${claim.evidenceCreated}` : ""}{claim.evidenceExpires ? `. VA system delete date shown: ${claim.evidenceExpires}` : ""}.</p> : null}
+            </div>
+          ))}
+          {formDrafts.map((draft) => (
+            <div key={draft.form} style={{ border: "1px solid #f7c1c1", borderRadius: 8, padding: "10px 12px", background: "#f8e2df", marginBottom: 8 }}>
+              <strong style={{ color: "#a32d2d", fontSize: 13 }}>{draft.name} saved draft</strong>
+              <p style={{ margin: "5px 0 0", color: "#793030", fontSize: 12 }}>{draft.savedAt ? `Saved ${draft.savedAt}. ` : ""}{draft.attemptedSubmit ? "A submission attempt appears in the imported VA data. " : ""}{draft.expires ? `Draft expiration shown: ${draft.expires}. ` : ""}Confirm intent with an accredited representative.</p>
+            </div>
+          ))}
+        </Card>
+      ) : null}
+
+      <Card title="Evidence Matrix v2" sub="Service-connected conditions, prior denials, and VA math from veteran-provided VA JSON." badge="Import-driven">
+        <div style={{ display: "flex", gap: 5, marginBottom: 14, background: "#f4f6f3", padding: 4, borderRadius: 8 }}>
+          {[
+            ["matrix", "Evidence Matrix"],
+            ["denials", "Prior Denials"],
+            ["math", "VA Math"],
+          ].map(([id, label]) => (
+            <button key={id} type="button" onClick={() => setDecoderTab(id as "matrix" | "denials" | "math")} style={{ flex: 1, minHeight: 34, border: "0", borderRadius: 6, background: decoderTab === id ? "#fff" : "transparent", color: decoderTab === id ? "#172132" : "#667184", fontWeight: 850, cursor: "pointer", boxShadow: decoderTab === id ? "0 1px 2px rgba(0,0,0,.08)" : "none" }}>{label}</button>
+          ))}
+        </div>
+
+        {decoderTab === "matrix" ? (
+          <div>
+            <div style={{ background: overallColors.bg, border: `1px solid ${overallColors.bar}44`, borderRadius: 8, padding: "12px 14px", marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                <div>
+                  <strong style={{ display: "block", color: overallColors.text, fontSize: 12, textTransform: "uppercase" as const }}>Evidence completeness</strong>
+                  <span style={{ fontSize: 30, fontWeight: 950, color: overallColors.text }}>{overallReadiness}%</span>
+                </div>
+                <div style={{ textAlign: "right" as const, color: overallColors.text, fontSize: 12 }}>
+                  <div>{conditions.length} service-connected conditions</div>
+                  <div>{conditions.filter((condition) => readiness(condition) < 50).length} rows need evidence work</div>
+                  <div>Combined rating: {displayedCombined !== null ? `${displayedCombined}%` : "not found"}</div>
+                </div>
+              </div>
+              <div style={{ height: 8, background: "#fff9", borderRadius: 99, overflow: "hidden", marginTop: 8 }}>
+                <div style={{ width: `${overallReadiness}%`, height: "100%", background: overallColors.bar }} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" as const }}>
+              {[
+                ["all", "All conditions"],
+                ["high", "High priority"],
+                ["gaps", "Evidence gaps"],
+              ].map(([id, label]) => (
+                <button key={id} type="button" onClick={() => setConditionFilter(id as "all" | "high" | "gaps")} style={{ minHeight: 30, padding: "0 11px", border: "1px solid #d9dfd5", borderRadius: 7, background: conditionFilter === id ? "#172132" : "#fff", color: conditionFilter === id ? "#fff" : "#667184", cursor: "pointer", fontWeight: 800 }}>{label}</button>
+              ))}
+            </div>
+
+            {filteredConditions.length ? filteredConditions.map((condition) => {
+              const score = readiness(condition);
+              const colors = readinessColor(score);
+              const open = openConditionId === condition.id;
+              const doneCount = condition.evidenceItems.filter((item) => itemDone(condition, item)).length;
+              return (
+                <div key={condition.id} style={{ border: open ? `1px solid ${colors.bar}` : "1px solid #d9dfd5", borderRadius: 8, marginBottom: 8, overflow: "hidden" }}>
+                  <button type="button" onClick={() => setOpenConditionId(open ? null : condition.id)} style={{ width: "100%", border: 0, background: "#fff", padding: "11px 13px", cursor: "pointer", textAlign: "left" as const }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" as const }}>
+                      <strong style={{ flex: 1, minWidth: 180, fontSize: 13 }}>{condition.condition}</strong>
+                      <span style={{ color: "#267a56", fontWeight: 900 }}>{condition.rating !== null ? `${condition.rating}%` : "N/A"}</span>
+                      <Pill label={condition.priority === "high" ? "High" : condition.priority === "medium" ? "Medium" : "Low"} />
+                      <Pill label={condition.staticIndicator === "Yes" ? "Static" : condition.staticIndicator === "No" ? "Not static" : "Static unknown"} />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+                      <div style={{ flex: 1, height: 6, borderRadius: 99, background: "#edf0ea", overflow: "hidden" }}>
+                        <div style={{ width: `${score}%`, height: "100%", background: colors.bar }} />
+                      </div>
+                      <span style={{ color: colors.text, fontSize: 12, fontWeight: 900 }}>{score}% ready</span>
+                      <span style={{ color: "#667184", fontSize: 11 }}>{doneCount}/{condition.evidenceItems.length}</span>
+                    </div>
+                  </button>
+                  {open ? (
+                    <div style={{ borderTop: "1px solid #edf0ea", padding: "11px 13px", background: "#f9fbf7" }}>
+                      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" as const, color: "#667184", fontSize: 12, marginBottom: 10 }}>
+                        <span>Code: {condition.diagnosticCode}</span>
+                        <span>Effective: {condition.effectiveDate}</span>
+                        <span>{condition.category}</span>
+                        {condition.codeName ? <span>{condition.codeName}</span> : null}
+                      </div>
+                      <p style={{ margin: "0 0 10px", color: "#667184", fontSize: 12, lineHeight: 1.5 }}>{condition.notes}</p>
+                      {condition.evidenceItems.map((item) => {
+                        const done = itemDone(condition, item);
+                        return (
+                          <label key={item.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 0", borderTop: "1px solid #edf0ea", cursor: "pointer" }}>
+                            <input type="checkbox" checked={done} onChange={() => toggleEvidence(condition.id, item.id, done)} />
+                            <span style={{ flex: 1, fontSize: 12, color: done ? "#667184" : "#172132" }}>{item.label}</span>
+                            <Pill label={done ? "Found" : "Missing"} />
+                          </label>
+                        );
+                      })}
+                      <label style={{ display: "block", marginTop: 10 }}>
+                        <span style={{ display: "block", fontSize: 11, fontWeight: 850, color: "#267a56", textTransform: "uppercase" as const, marginBottom: 5 }}>What changed since last rated?</span>
+                        <textarea value={whatChanged[condition.id] || ""} onChange={(event) => setWhatChanged((previous) => ({ ...previous, [condition.id]: event.target.value }))} rows={2} placeholder={`Describe what is different today for ${condition.condition}...`} style={{ width: "100%", border: "1px solid #d9dfd5", borderRadius: 7, padding: 9, resize: "vertical" as const, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" as const }} />
+                      </label>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            }) : <p style={{ margin: 0, color: "#667184", fontSize: 12 }}>Upload rated disabilities JSON to populate the Evidence Matrix.</p>}
           </div>
-        ) : <p style={{ margin: 0, color: "#667184", fontSize: 12 }}>No condition rows decoded yet. Paste or upload JSON from the veteran's own VA data export.</p>}
-        <div style={{ marginTop: 10, padding: "9px 11px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0" }}>
+        ) : null}
+
+        {decoderTab === "denials" ? (
+          <div>
+            <div style={{ background: "#f8e2df", border: "1px solid #f7c1c1", borderRadius: 8, padding: "10px 12px", marginBottom: 12 }}>
+              <strong style={{ display: "block", color: "#a32d2d", fontSize: 13 }}>Prior denials are locked-door topics</strong>
+              <p style={{ margin: "4px 0 0", color: "#793030", fontSize: 12, lineHeight: 1.5 }}>These rows came from prior VA decisions in the imported data. They are separated from opportunity rooms because prior denials usually require careful representative review, the original denial reason, and appropriate evidence before any next step.</p>
+            </div>
+            <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Worth Representative Review ({representativeReviewDenials.length})</h3>
+            {representativeReviewDenials.map((denial) => {
+              const open = openDenialId === denial.id;
+              return (
+                <div key={denial.id} style={{ border: open ? "1px solid #b6504c" : "1px solid #d9dfd5", borderRadius: 8, marginBottom: 7, overflow: "hidden" }}>
+                  <button type="button" onClick={() => setOpenDenialId(open ? null : denial.id)} style={{ width: "100%", display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", border: 0, background: "#fff", padding: "10px 12px", cursor: "pointer", textAlign: "left" as const }}>
+                    <span><strong style={{ display: "block", fontSize: 13 }}>{denial.condition}</strong><small style={{ color: "#667184" }}>{denial.category} - Code {denial.diagnosticCode}</small></span>
+                    <Pill label="Prior denial" />
+                  </button>
+                  {open ? <p style={{ margin: 0, padding: "10px 12px", borderTop: "1px solid #edf0ea", background: "#f9fbf7", color: "#667184", fontSize: 12, lineHeight: 1.5 }}>{denial.notes}</p> : null}
+                </div>
+              );
+            })}
+            <h3 style={{ margin: "14px 0 8px", fontSize: 14 }}>Other Prior Denials ({otherDenials.length})</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 7 }} className="nonVaLaneGrid">
+              {(otherDenials.length ? otherDenials : denials.length ? [] : [{ id: "empty", condition: "No prior denials decoded yet", diagnosticCode: "Upload data", category: "VA JSON", codeName: "", reviewLevel: "Prior denial" as const, notes: "" }]).map((denial) => (
+                <div key={denial.id} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: "9px 11px", background: "#fff" }}>
+                  <strong style={{ display: "block", fontSize: 12 }}>{denial.condition}</strong>
+                  <span style={{ color: "#667184", fontSize: 11 }}>{denial.category} - {denial.diagnosticCode}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {decoderTab === "math" ? (
+          <div>
+            <div style={{ padding: "10px 12px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0", marginBottom: 12 }}>
+              <strong style={{ color: "#8a6319", fontSize: 12 }}>Educational VA math only</strong>
+              <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12 }}>VA uses whole-person math and may apply bilateral factors or other adjustments that this educational calculator may not reproduce exactly.</p>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginBottom: 12 }} className="nonVaStatsGrid">
+              <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}><span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>Imported combined</span><div style={{ fontSize: 26, fontWeight: 950 }}>{displayedCombined !== null ? `${displayedCombined}%` : "N/A"}</div></div>
+              <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}><span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>Calculator</span><div style={{ fontSize: 26, fontWeight: 950 }}>{combinedMath.rounded}%</div></div>
+              <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}><span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>100% threshold</span><div style={{ fontSize: 26, fontWeight: 950 }}>95%+</div></div>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 10 }}>{combinedMath.sorted.map((rating, index) => <Pill key={`${rating}-${index}`} label={`${rating}%`} />)}</div>
+            {combinedMath.steps.map((step, index) => <div key={`${step.rating}-${index}`} style={{ padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 6 }}><strong style={{ fontSize: 13 }}>Step {index + 1}: add {step.rating}%</strong><p style={{ margin: "2px 0 0", color: "#667184", fontSize: 12 }}>Raw combined value moves from {step.before}% to {step.after}%.</p></div>)}
+            <div style={{ padding: "10px 12px", border: "1px solid #267a5644", borderRadius: 8, background: "#dff3e7", marginTop: 10 }}><strong style={{ color: "#267a56", fontSize: 14 }}>Rating Gap connection: {combinedMath.raw}% raw, rounds to {combinedMath.rounded}% combined. Educational examples should be checked against the Rating Gap Analyzer and an accredited representative.</strong></div>
+          </div>
+        ) : null}
+      </Card>
+
+      <Card title="Decoded Reference Tables" sub="Plain-English review of imported VA fields. Verify all fields against the original VA source." badge={`${conditions.length} conditions`}>
+        <div style={{ overflowX: "auto", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 10 }}>
+          <table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse" as const }}>
+            <thead><tr style={{ background: "#f4f6f3" }}>{["Condition", "Rating", "Effective Date", "Static Indicator", "Diagnostic Code"].map((heading) => <th key={heading} style={{ padding: "9px 10px", textAlign: "left" as const, color: "#667184", fontSize: 11, textTransform: "uppercase" as const, borderBottom: "1px solid #d9dfd5" }}>{heading}</th>)}</tr></thead>
+            <tbody>
+              {conditions.length ? conditions.map((condition) => (
+                <tr key={`${condition.condition}-${condition.rating}-${condition.effectiveDate}-${condition.diagnosticCode}`}>
+                  <td style={{ padding: 10, borderBottom: "1px solid #edf0ea", fontSize: 12, fontWeight: 800 }}>{condition.condition}</td>
+                  <td style={{ padding: 10, borderBottom: "1px solid #edf0ea", fontSize: 12 }}>{condition.rating !== null ? `${condition.rating}%` : "Not found"}</td>
+                  <td style={{ padding: 10, borderBottom: "1px solid #edf0ea", fontSize: 12 }}>{condition.effectiveDate}</td>
+                  <td style={{ padding: 10, borderBottom: "1px solid #edf0ea", fontSize: 12 }}>{condition.staticIndicator}</td>
+                  <td style={{ padding: 10, borderBottom: "1px solid #edf0ea", fontSize: 12 }}>{condition.diagnosticCode}</td>
+                </tr>
+              )) : <tr><td colSpan={5} style={{ padding: 10, color: "#667184", fontSize: 12 }}>No condition rows decoded yet.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ marginBottom: 10, padding: "9px 11px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0" }}>
           <strong style={{ color: "#8a6319", fontSize: 12 }}>Static indicator explanation</strong>
           <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12 }}>Static = condition currently appears marked as static within VA records. A static indicator does not automatically mean a rating is legally protected from future review or reduction. Discuss protection rules with an accredited representative.</p>
         </div>
-      </Card>
-
-      <Card title="Effective Date Analyzer" sub="Educational timing review only. This is not legal advice about protected ratings." badge="Date review">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }} className="nonVaLaneGrid">
           {[{ title: "Oldest effective dates", data: oldest }, { title: "Newest effective dates", data: newest }].map((group) => (
             <div key={group.title} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
@@ -888,50 +1389,11 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
             <Pill label={status} />
           </div>
         ))}
-      </Card>
-
-      <Card title="Rating Timeline" sub="Condition, rating, and effective date as decoded from the veteran-provided data." badge="Visual timeline">
-        {conditions.length ? conditions.map((condition) => (
-          <div key={`${condition.condition}-timeline`} style={{ display: "grid", gridTemplateColumns: "160px 80px 1fr", gap: 10, alignItems: "center", padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 6 }}>
-            <strong style={{ fontSize: 12 }}>{condition.condition}</strong>
-            <span style={{ color: "#267a56", fontSize: 13, fontWeight: 900 }}>{condition.rating !== null ? `${condition.rating}%` : "N/A"}</span>
-            <div style={{ height: 6, borderRadius: 3, background: "#f4f6f3" }}>
-              <div style={{ width: `${condition.rating ?? 8}%`, maxWidth: "100%", height: 6, borderRadius: 3, background: "#267a56" }} />
-              <span style={{ display: "block", marginTop: 3, color: "#667184", fontSize: 11 }}>{condition.effectiveDate}</span>
-            </div>
-          </div>
-        )) : <p style={{ margin: 0, color: "#667184", fontSize: 12 }}>Timeline appears after condition data is decoded.</p>}
-      </Card>
-
-      <Card title="Diagnostic Code Decoder" sub="Plain-English labels for common diagnostic codes. Educational reference only." badge="Code lookup">
-        {diagnosticCodes.length ? diagnosticCodes.map((code) => (
+        {diagnosticCodes.map((code) => (
           <div key={code} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 6 }}>
             <strong style={{ fontSize: 13 }}>{code}</strong><span style={{ color: "#667184", fontSize: 12 }}>{diagnosticDescription(code)}</span>
           </div>
-        )) : <p style={{ margin: 0, color: "#667184", fontSize: 12 }}>No diagnostic codes decoded yet.</p>}
-      </Card>
-
-      <Card title="Combined Rating Calculator" sub="Educational VA math visualization from decoded condition ratings. Exact VA calculations may require bilateral factors and full codesheet review." badge="VA math">
-        {ratings.length ? (
-          <>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 10 }}>{combinedMath.sorted.map((rating, index) => <Pill key={`${rating}-${index}`} label={`${rating}%`} />)}</div>
-            {combinedMath.steps.map((step, index) => <div key={`${step.rating}-${index}`} style={{ padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 6 }}><strong style={{ fontSize: 13 }}>Step {index + 1}: add {step.rating}%</strong><p style={{ margin: "2px 0 0", color: "#667184", fontSize: 12 }}>Raw combined value moves from {step.before}% to {step.after}%.</p></div>)}
-            <div style={{ padding: "10px 12px", border: "1px solid #267a5644", borderRadius: 8, background: "#dff3e7" }}><strong style={{ color: "#267a56", fontSize: 14 }}>Result: {combinedMath.raw}% raw, rounds to {combinedMath.rounded}% combined</strong></div>
-          </>
-        ) : <p style={{ margin: 0, color: "#667184", fontSize: 12 }}>Add JSON with individual condition ratings to visualize VA math.</p>}
-      </Card>
-
-      <Card title="Opportunity Discovery Engine" sub="Topics to discuss with an accredited representative. No approval, denial, or success prediction." badge="Discussion only">
-        {(opportunityTopics.length ? opportunityTopics : ["Upload condition data to generate personalized representative discussion topics."]).map((topic) => (
-          <div key={topic} style={{ padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 6 }}>
-            <strong style={{ display: "block", color: "#267a56", fontSize: 11, textTransform: "uppercase" as const }}>Topic to discuss with an accredited representative</strong>
-            <p style={{ margin: "3px 0 0", color: "#667184", fontSize: 12 }}>{topic}</p>
-          </div>
         ))}
-      </Card>
-
-      <Card title="Missing Evidence Review" sub="Checklist only. The decoder does not make legal or medical conclusions." badge="Evidence">
-        {evidenceChecklist.map((item) => <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 6 }}><span style={{ fontSize: 12 }}>{item.label}</span><Pill label={item.found ? "Found" : "Missing"} /></div>)}
       </Card>
 
       <Card title="VSO Preparation Packet" sub="Use browser print/save as PDF for a portable discussion packet." badge="Exportable">
@@ -1683,21 +2145,11 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
             <p style={{ margin: "3px 0 0", fontSize: 12, color: "#667184" }}>{item.text}</p>
           </div>
         ))}
-        <h3 style={{ margin: "12px 0 8px", fontSize: 14 }}>Evidence Matrix</h3>
-        {conditionMatrix.map((row) => (
-          <div key={row.condition} style={{ padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 5 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <strong style={{ color: "#267a56", fontSize: 13 }}>{row.condition}</strong>
-              <Pill label={row.ready} />
-            </div>
-            <div style={{ display: "flex", gap: 12, marginTop: 3 }}>
-              <span style={{ fontSize: 11, color: "#667184" }}>VA SC: {row.va}</span>
-              <span style={{ fontSize: 11, color: "#667184" }}>SSDI: {row.ssdi}</span>
-              <span style={{ fontSize: 11, color: "#667184" }}>Rating: {row.rating}</span>
-            </div>
-            <p style={{ margin: "3px 0 0", fontSize: 11, color: "#667184" }}>Last exam: {row.lastExam} · Worsening: {row.worsening}</p>
-          </div>
-        ))}
+        <h3 style={{ margin: "12px 0 8px", fontSize: 14 }}>Evidence Matrix v2</h3>
+        <div style={{ padding: "10px 12px", border: "1px solid #267a5644", borderRadius: 7, background: "#dff3e7", marginBottom: 8 }}>
+          <strong style={{ display: "block", color: "#267a56", fontSize: 13 }}>Use VA Data Decoder for the live matrix</strong>
+          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#267a56" }}>The old placeholder rows have been replaced by an import-driven Evidence Matrix, Prior Denials list, and VA Math tab. Upload this veteran's VA JSON in the VA Data Decoder section to populate real rows for that signed-in user only.</p>
+        </div>
         <h3 style={{ margin: "12px 0 8px", fontSize: 14 }}>SSDI Mapping</h3>
         {["What conditions are listed on the SSDI award or BPQY?", "Which SSDI conditions match the veteran's service-connected condition list?", "Which conditions affect work but are not yet VA service-connected?", "Which evidence supports schedular increase versus TDIU discussion?"].map((item, i) => (
           <label key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 7, cursor: "pointer", marginBottom: 5 }}>
