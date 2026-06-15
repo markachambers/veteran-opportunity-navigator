@@ -12,7 +12,7 @@ const stateAliases: Record<string, string> = {
 };
 
 function displayState(state?: string | null) {
-  if (!state) return "Florida";
+  if (!state) return "Add state";
   return stateAliases[state.toUpperCase()] || state;
 }
 
@@ -31,7 +31,7 @@ function displayRank(profile: any) {
 }
 
 function displayDependents(value?: string | null) {
-  if (!value || value === "0") return "None";
+  if (!value || value === "0") return "Add dependents";
   return value;
 }
 
@@ -66,15 +66,15 @@ export default async function Home() {
     supabase.from("voice_notes").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
   ]);
 
-  const displayName = profile?.display_name || user.email || "Veteran";
-  const branch = profile?.branch || "Air Force";
+  const displayName = profile?.display_name || "Veteran";
+  const branch = profile?.branch || "Add branch";
   const state = displayState(profile?.state);
   const rating = displayRating(profile?.current_rating);
   const rank = displayRank(profile);
-  const workStatus = profile?.work_status || "Unemployed + SSDI";
+  const workStatus = profile?.work_status || "Add work status";
   const dependentStatus = displayDependents(profile?.dependent_status);
-  const serviceStatus = profile?.service_status || "Honorable";
-  const permanentTotalStatus = profile?.permanent_total_status || "No";
+  const serviceStatus = profile?.service_status || "Add service";
+  const permanentTotalStatus = profile?.permanent_total_status || "Add P&T";
   const monthlyAward = profile?.monthly_award || "Add award";
   const vaLoanStatus = profile?.va_loan_status || "Add VA loan";
   const federalPreference = profile?.federal_preference_status || "Add preference";
@@ -134,9 +134,9 @@ export default async function Home() {
             <button type="submit">Sign out</button>
           </form>
           <div className="topbarStats" aria-label="Navigator impact metrics">
-            <div><strong>{24 + 8}</strong><span>likely matches</span></div>
+            <div><strong>{documents?.length || 0}</strong><span>documents</span></div>
             <div><strong>{rating}</strong><span>SC rating</span></div>
-            <div><strong>2</strong><span>answers needed</span></div>
+            <div><strong>{notes?.length || 0}</strong><span>notes</span></div>
           </div>
         </header>
 
@@ -153,7 +153,7 @@ export default async function Home() {
         </section>
 
         <section className="progressBand" aria-label="Intake progress">
-          {["Identity", "Service", "Rating", "Decision letter", "Florida"].map((step, index) => (
+          {["Identity", "Service", "Rating", "Decision letter", "State"].map((step, index) => (
             <div key={step} className={`step ${index === 3 ? "active" : "done"}`}>
               <span>{index === 3 ? "4" : "✓"}</span>
               <strong>{step}</strong>
@@ -190,7 +190,7 @@ export default async function Home() {
           <div className="advisorIcon">AI</div>
           <div>
             <strong>AI advisor</strong>
-            <p>For your {branch} veteran, {state} resident, {rating} service-connected profile, start with schedular review opportunities. Current strategy favors schedular evidence review over TDIU so future work and consulting options stay open.</p>
+            <p>Complete this veteran profile, upload their documents, then the navigator will organize evidence, benefit possibilities, and VSO-ready questions for that person only.</p>
           </div>
           <button type="button">Prepare packet <span>→</span></button>
         </section>

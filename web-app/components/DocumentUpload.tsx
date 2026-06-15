@@ -8,7 +8,7 @@ const targets = [
   { id: "va-letters", title: "VA Letters", note: "Benefit summary, FMP, civil service, COE" },
   { id: "rating-decision", title: "Full VA rating decision", note: "Individual ratings, diagnostic codes, reasons" },
   { id: "ssdi-records", title: "SSDI award letter or BPQY", note: "SSDI-to-service-connected condition mapping" },
-  { id: "surgery-records", title: "Aortic surgery and dialysis records", note: "Aortic residuals, dialysis episode, follow-up care" },
+  { id: "surgery-records", title: "Surgery / hospitalization records", note: "Operations, hospitalizations, complications, residuals, follow-up care" },
   { id: "medications", title: "Medication list", note: "Current treatment profile and functional impact" },
   { id: "employment", title: "Employment timeline evidence", note: "Work history, SSDI context, future consulting strategy" },
   { id: "personal-statement", title: "Personal statement timeline", note: "Symptoms, what changed, daily impact, VSO conversation" },

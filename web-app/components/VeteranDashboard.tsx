@@ -5,31 +5,31 @@ import type { ReactNode } from "react";
 import { deleteDocument, deleteDuplicateDocuments } from "@/app/actions";
 
 const categories = [
-  { name: "Federal", initials: "FE", color: "green", count: 10, value: "Confirmed", items: ["30%+ civil-service preference proof", "No-cost VA health care and prescriptions", "VR&E eligibility screen"], source: "Civil service letter / VA matrix" },
-  { name: "Florida", initials: "FL", color: "gold", count: 9, value: "Unlocked", items: ["Free lifetime state park pass", "FDVA/CVSO benefits counseling", "P&T-only tax/ID benefits currently conditional"], source: "FDVA / Florida State Parks" },
-  { name: "Commissary", initials: "CX", color: "teal", count: 3, value: "Likely", items: ["Commissary access", "Exchange access", "MWR retail facility access"], source: "VA News / DoD access" },
-  { name: "Education", initials: "ED", color: "blue", count: 4, value: "Check", items: ["Florida tuition waiver check", "Priority registration if using GI Bill", "VR&E education or training path"], source: "FDVA education" },
-  { name: "Owner/Buyer", initials: "HO", color: "red", count: 7, value: "Strong", items: ["VA funding-fee exemption confirmed", "Prior entitlement charged: $87,575", "Restoration or remaining-entitlement strategy"], source: "VA COE / FDVA housing" },
-  { name: "FMP/Health", initials: "FM", color: "green", count: 9, value: "Authorized", items: ["Foreign Medical Program for SC conditions", "Condition list captured", "Travel reimbursement check"], source: "FMP authorization / VA matrix" },
-  { name: "Schedular Review", initials: "SR", color: "gold", count: 8, value: "High", items: ["90-to-100 evidence matrix", "Map SSDI basis to SC conditions", "Need individual rating breakdown"], source: "VA rating evidence review" },
-  { name: "No Dependents", initials: "FA", color: "teal", count: 1, value: "Closed", items: ["No spouse/dependent add-on", "Skip spouse Aid and Attendance", "Skip dependent scholarship unless status changes"], source: "VA compensation rates" },
+  { name: "Federal", initials: "FE", color: "green", count: 0, value: "Check", items: ["Federal hiring preference", "VA health care", "VR&E eligibility screen"], source: "VA / OPM / agency review" },
+  { name: "State", initials: "ST", color: "gold", count: 0, value: "Check", items: ["State veteran benefits", "County VSO resources", "Property tax or parks programs"], source: "State veteran affairs office" },
+  { name: "Commissary", initials: "CX", color: "teal", count: 0, value: "Check", items: ["Commissary access", "Exchange access", "MWR retail facility access"], source: "VA / DoD access review" },
+  { name: "Education", initials: "ED", color: "blue", count: 0, value: "Check", items: ["GI Bill review", "State tuition programs", "VR&E education or training path"], source: "VA / state education review" },
+  { name: "Owner/Buyer", initials: "HO", color: "red", count: 0, value: "Check", items: ["VA home loan eligibility", "Funding-fee status", "Restoration or remaining-entitlement strategy"], source: "VA COE / lender review" },
+  { name: "Health", initials: "HC", color: "green", count: 0, value: "Check", items: ["VA health care", "Foreign Medical Program if applicable", "Travel reimbursement check"], source: "VA health care review" },
+  { name: "Schedular Review", initials: "SR", color: "gold", count: 0, value: "Investigate", items: ["Current rating evidence matrix", "Secondary-condition review", "Need individual rating breakdown"], source: "VA rating evidence review" },
+  { name: "Family", initials: "FA", color: "teal", count: 0, value: "Check", items: ["Dependent add-on", "Spouse/dependent education", "Survivor or caregiver programs"], source: "VA family benefit review" },
 ];
 
 const actions = [
-  { title: "Build schedular 90-to-100 evidence matrix", meta: "Preserves future work options while reviewing increases, secondaries, and residuals", priority: "High" },
-  { title: "Map SSDI basis to service-connected conditions", meta: "Use SSA evidence to understand overlap, not to force a TDIU posture", priority: "Today" },
-  { title: "Retrieve individual rating breakdown when VA access returns", meta: "Needed to see which conditions, diagnostic codes, and last exams may warrant review", priority: "Next" },
-  { title: "Plan next VA-backed home purchase", meta: "COE confirms funding-fee exemption and $87,575 prior entitlement charged; check restoration or remaining entitlement", priority: "Open" },
-  { title: "Use civil-service letter for federal applications", meta: "Document verifies honorable separation and 30%+ service-connected disability compensation", priority: "Open" },
-  { title: "Claim Florida free lifetime state park pass", meta: "Service-connected veterans can qualify with proof of status and honorable discharge", priority: "Open" },
+  { title: "Upload latest VA rating decision", meta: "Needed to identify individual ratings, diagnostic codes, effective dates, and reasons.", priority: "High" },
+  { title: "Map any SSDI basis to VA service-connected conditions", meta: "Use SSA evidence to understand overlap while keeping SSA and VA standards separate.", priority: "Next" },
+  { title: "Build employment and functional impact timeline", meta: "Needed for TDIU conversations, SSDI context, and work-limit documentation.", priority: "Next" },
+  { title: "Check state and county benefits", meta: "Property tax, DMV, parks, education, and local benefits depend on residence and proof.", priority: "Open" },
+  { title: "Review home loan and property goals", meta: "COE, funding-fee status, entitlement, and state property tax rules should be checked if housing matters.", priority: "Open" },
+  { title: "Prepare VSO questions", meta: "Turn uploaded evidence into a focused representative conversation.", priority: "Open" },
 ];
 
 const evidenceConfig = [
   { category: "Service Records", docCategory: "service-records", note: "Service verification and proof of honorable service captured." },
-  { category: "VA Letters", docCategory: "va-letters", note: "Benefit summary, FMP, civil-service, and COE letters captured." },
+  { category: "VA Letters", docCategory: "va-letters", note: "Benefit summary, FMP, civil-service, COE, or other VA letters." },
   { category: "Rating Decisions", docCategory: "rating-decision", note: "Need full decision with individual ratings, diagnostic codes, and reasons." },
   { category: "SSDI Records", docCategory: "ssdi-records", note: "Need award letter or BPQY showing SSA-recognized conditions." },
-  { category: "Surgical Records", docCategory: "surgery-records", note: "Need aortic surgery, dialysis episode, follow-up care, and residual notes." },
+  { category: "Surgical Records", docCategory: "surgery-records", note: "Need surgery, hospitalization, complications, follow-up care, and residual notes where applicable." },
   { category: "Medication List", docCategory: "medications", note: "Needed for current treatment profile and functional impact." },
   { category: "Employment Timeline", docCategory: "employment", note: "Needed to understand work limits and timeline context." },
   { category: "Personal Statement Timeline", docCategory: "personal-statement", note: "Needed to explain symptoms, changes, and daily limitations." },
@@ -40,14 +40,14 @@ const documentCategoryLabels: Record<string, string> = Object.fromEntries(
 );
 
 const opportunityScores = [
-  { area: "State Benefits", opportunity: "High", note: "Florida benefits and county-level savings should be investigated." },
-  { area: "Home Loan Entitlement Review", opportunity: "Medium", note: "COE confirms funding-fee exemption and prior entitlement charged." },
-  { area: "Florida Property Tax", opportunity: "Medium", note: "Worth investigating as homeowner; P&T-only items remain conditional." },
-  { area: "Schedular Increase Review", opportunity: "High", note: "Preferred personal path because it preserves future work and consulting options." },
-  { area: "VR&E", opportunity: "Medium", note: "Explore if education, training, or independent-living support is useful." },
-  { area: "Foreign Medical Program", opportunity: "Active", note: "Authorization is verified for service-connected conditions abroad." },
-  { area: "Federal Employment Preference", opportunity: "Active", note: "Civil-service letter verifies 30%+ preference support." },
-  { area: "Post-Surgical Residual Review", opportunity: "Investigate", note: "Aortic surgery, dialysis, numbness, scars, and monitoring need chronology." },
+  { area: "State Benefits", opportunity: "Check", note: "State and county benefits should be personalized after residence is entered." },
+  { area: "Home Loan Entitlement Review", opportunity: "Check", note: "Upload a COE to review funding-fee status, entitlement, and housing questions." },
+  { area: "Property Tax", opportunity: "Check", note: "Rules vary by state, county, rating, P&T status, and filing deadlines." },
+  { area: "Schedular Increase Review", opportunity: "Investigate", note: "Needs individual rating breakdown and current evidence." },
+  { area: "VR&E", opportunity: "Check", note: "Explore if education, training, employment, or independent-living support is useful." },
+  { area: "Foreign Medical Program", opportunity: "Check", note: "Upload any FMP letter or identify overseas care needs." },
+  { area: "Federal Employment Preference", opportunity: "Check", note: "Upload civil-service or preference proof if federal employment matters." },
+  { area: "Residual / Secondary Review", opportunity: "Investigate", note: "Needs symptom timeline, medical records, and accredited review." },
 ];
 
 const nonVaBenefitLanes = [
@@ -185,7 +185,7 @@ function stateBenefitsUrl(state: string, branch?: string | null) {
 
 function stateDisplay(state?: string | null) {
   const value = state?.trim();
-  if (!value) return "Florida";
+  if (!value) return "Add state";
   const aliases: Record<string, string> = { FL: "Florida", DC: "District of Columbia" };
   return aliases[value.toUpperCase()] || value;
 }
@@ -404,13 +404,11 @@ const possibilityLibrary = [
 ];
 
 const lifeEvents = [
-  { when: "1985-1988", event: "Air Force service", evidence: "DD-214 / service verification", impact: "Eligibility foundation", status: "Verified", detail: "Service records verify honorable Air Force service." },
-  { when: "~2007", event: "First aneurysm history", evidence: "Hospital records needed", impact: "Major", status: "Unconfirmed", detail: "Exact event, records, facility, and diagnosis timeline needed." },
-  { when: "2023", event: "Emergency hospitalization", evidence: "UF / hospital records needed", impact: "Major", status: "Unconfirmed", detail: "Transport records, ER notes, and discharge summary should be gathered." },
-  { when: "2025", event: "Major aortic repair", evidence: "Operative report / surgical records", impact: "Major", status: "Unconfirmed", detail: "Surgeon notes, procedure report, complications, and follow-up plan needed." },
-  { when: "2025", event: "Dialysis episode", evidence: "Nephrology records needed", impact: "Major", status: "Unconfirmed", detail: "Duration, cause, facility, and relation to surgery need documentation." },
-  { when: "Current", event: "Residual numbness and monitoring", evidence: "Neurology notes / follow-up care", impact: "Active", status: "Investigate", detail: "Provider notes, neuro findings, scar documentation, and current limitations needed." },
-  { when: "2026", event: "Current VA/FMP evidence", evidence: "Benefit summary / FMP letter", impact: "Benefit lanes", status: "Verified", detail: "VA letters verify rating status, FMP condition list, preference, and loan eligibility." },
+  { when: "Service period", event: "Military service", evidence: "DD-214 / service verification", impact: "Eligibility foundation", status: "Missing", detail: "Upload service records to verify branch, dates, character of service, and occupational history." },
+  { when: "Current", event: "Current VA rating status", evidence: "Benefit summary / rating decision", impact: "Benefit lanes", status: "Missing", detail: "Upload VA letters to verify combined rating, P&T status, payment, and current conditions." },
+  { when: "Current", event: "Current medical picture", evidence: "Treatment records / medication list", impact: "Care and evidence", status: "Missing", detail: "Upload current care records to understand diagnoses, treatment, and functional impact." },
+  { when: "Current", event: "Work and income context", evidence: "Employment timeline / SSDI records", impact: "TDIU and planning", status: "Missing", detail: "Upload work history, SSDI records, or notes about employment limits if relevant." },
+  { when: "Next", event: "VSO conversation", evidence: "Prepared questions and evidence packet", impact: "Action planning", status: "Open", detail: "The app will turn verified facts into questions after this veteran's own records are present." },
 ];
 
 const conditionMatrix = [
@@ -542,34 +540,33 @@ const tdiuEvidenceAreas = [
 ];
 
 const journeyItems = [
-  { date: "Aug 1985 - May 1988", title: "Air Force service", status: "Verified", text: "VA service verification confirms honorable Air Force service for this period." },
-  { date: "Apr 1, 2026", title: "Current award status", status: "Verified", text: "Benefit summary shows 90% combined service-connected evaluation, monthly award, and not P&T." },
-  { date: "Mar 31, 2026", title: "Home loan eligibility", status: "Verified", text: "COE confirms Chapter 37 eligibility, funding-fee exemption, and prior entitlement charged." },
-  { date: "Jun 14, 2026", title: "Evidence packet grows", status: "Mapped", text: "Civil-service preference, proof of service, FMP authorization, and benefit summary now support separate benefit lanes." },
-  { date: "Next", title: "Claim research questions", status: "Open", text: "Individual ratings, SSDI basis, employment history, surgery residual records, and provider notes are still needed." },
+  { date: "Service period", title: "Military service", status: "Missing", text: "Upload service records to build this veteran's verified service foundation." },
+  { date: "Current", title: "VA benefit status", status: "Missing", text: "Upload benefit summary or rating decision to verify current VA status." },
+  { date: "Current", title: "Housing / COE status", status: "Missing", text: "Upload a COE if home loan or funding-fee questions matter." },
+  { date: "Current", title: "Evidence packet", status: "Open", text: "Uploaded records will become document explanations, evidence inventory, and representative questions." },
+  { date: "Next", title: "Research questions", status: "Open", text: "The app will identify missing evidence and discussion topics from this veteran's own profile." },
 ];
 
 const briefSections = [
-  { title: "Verified story", points: ["Air Force service verified as honorable from Aug. 20, 1985 to May 24, 1988.", "Benefit summary verifies 90% combined service-connected evaluation and not P&T.", "FMP authorization lists VA-adjudicated service-connected conditions."] },
-  { title: "Benefits already supported", points: ["VA compensation and monthly award are verified.", "VA home loan eligibility and funding-fee exemption are verified.", "Federal civil-service preference support is verified at 30%+ service-connected compensation."] },
-  { title: "Open questions", points: ["Individual ratings and diagnostic codes are still needed.", "SSDI basis must be mapped to service-connected conditions.", "Surgery residuals need medical chronology and accredited review."] },
-  { title: "Next conversation", points: ["Ask a VSO which schedular increase or secondary-condition lanes are most evidence-ready.", "Ask what records best document worsening, residuals, and current functional limits.", "Ask how prior VA loan entitlement affects another home purchase."] },
+  { title: "Verified story", points: ["Service records, VA letters, medical records, and benefit letters will appear here after upload."] },
+  { title: "Benefits already supported", points: ["Verified benefits will be listed only after this veteran's documents are present."] },
+  { title: "Open questions", points: ["Missing evidence, unclear eligibility facts, and representative questions will be generated from this veteran's own profile."] },
+  { title: "Next conversation", points: ["Ask an accredited representative which evidence to gather next and which possibilities are worth reviewing."] },
 ];
 
 const schedularStrategies = [
   { title: "No work restriction", text: "Schedular 100% does not require remaining unable to work; it better fits a future consulting/CES path." },
-  { title: "VA combined math needs evidence", text: "At 90%, the app needs individual ratings and new/worsened conditions to identify realistic paths." },
+  { title: "VA combined math needs evidence", text: "The app needs the current combined rating, individual ratings, and any new or worsened conditions to create educational examples." },
   { title: "Best review lanes", text: "Post-surgical residuals, secondaries, worsening of current SC conditions, and updated exams." },
 ];
 
 const vaultDocuments = [
-  { name: "benefit_summary.pdf", tags: ["VA Letter", "Rating"], linked: "Current award status" },
-  { name: "foreign_medical_program.pdf", tags: ["Medical", "VA Letter"], linked: "SC condition map" },
-  { name: "certificate_of_eligibility_home_loan.pdf", tags: ["Housing", "VA Letter"], linked: "Home loan entitlement" },
-  { name: "service_verification.pdf", tags: ["Service"], linked: "Air Force service" },
-  { name: "civil_service.pdf", tags: ["Employment"], linked: "Federal preference" },
-  { name: "Needed: SSDI award/BPQY", tags: ["SSDI", "Missing"], linked: "SSDI-to-SC mapping" },
-  { name: "Needed: aortic surgery records", tags: ["Surgery", "Missing"], linked: "Residual timeline" },
+  { name: "Needed: benefit summary or rating decision", tags: ["VA Letter", "Missing"], linked: "Current VA status" },
+  { name: "Needed: service verification or DD-214", tags: ["Service", "Missing"], linked: "Service foundation" },
+  { name: "Needed: medical records or medication list", tags: ["Medical", "Missing"], linked: "Current treatment picture" },
+  { name: "Needed: COE if buying or refinancing", tags: ["Housing", "Missing"], linked: "Home loan entitlement" },
+  { name: "Needed: SSDI award/BPQY if applicable", tags: ["SSDI", "Missing"], linked: "SSDI-to-VA mapping" },
+  { name: "Needed: employment timeline if work impact matters", tags: ["Employment", "Missing"], linked: "TDIU / work impact" },
 ];
 
 function statusColor(s: string) {
@@ -718,7 +715,7 @@ function readinessForPathway(needs: string[], documents: Doc[]) {
 
 function parseRating(value?: string | null) {
   const match = String(value || "").match(/\d+/);
-  return match ? Number(match[0]) : 90;
+  return match ? Number(match[0]) : 0;
 }
 
 function combineRatings(rawCombined: number, additional: number) {
@@ -732,6 +729,20 @@ function displayedVaRating(rawCombined: number) {
 
 export function RatingGapAnalyzer({ profile }: { profile: Profile }) {
   const displayedRating = parseRating(profile?.current_rating);
+  if (!displayedRating) {
+    return (
+      <div style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", color: "#172132" }}>
+        <Card title="Rating Gap Analyzer" sub="Educational VA-math planning only. This does not predict outcomes or recommend filing." badge="Needs profile">
+          <div style={{ padding: "10px 12px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0" }}>
+            <strong style={{ display: "block", color: "#8a6319", fontSize: 12 }}>Add this veteran's rating first</strong>
+            <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12, lineHeight: 1.45 }}>
+              Enter the veteran's current combined VA rating and upload the latest rating decision before using educational VA math examples.
+            </p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
   const rawRange = displayedRating === 100
     ? "95-100"
     : `${Math.max(0, displayedRating - 5)}-${Math.min(94, displayedRating + 4)}`;
@@ -950,7 +961,7 @@ export function VSOPacketGenerator({ profile, documents = [] }: { profile: Profi
 }
 
 export function SSDIEvidenceMapper({ documents = [] }: { documents?: Doc[] }) {
-  const [selected, setSelected] = useState(["Sleep apnea", "Depression", "Lumbar spine", "Radiculopathy"]);
+  const [selected, setSelected] = useState<string[]>([]);
   const ssdiDocs = documents.filter((doc) => doc.category === "ssdi-records" || /ssdi|ssa|bpqy|social security/i.test(doc.file_name));
   const employmentDocs = documents.filter((doc) => doc.category === "employment" || /employment|work|job|wage/i.test(doc.file_name));
   const matched = graphConditions.filter((condition) => selected.includes(condition.name));
@@ -1164,11 +1175,19 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
   const [protocol, setProtocol] = useState([true, true, false, false]);
   const [briefCopied, setBriefCopied] = useState(false);
 
-  const branch = profile?.branch || "Air Force";
+  const branch = profile?.branch || "Add branch";
   const state = stateDisplay(profile?.state);
   const rating = ratingDisplay(profile?.current_rating);
   const cat = categories.find((c) => c.name === selectedCat) || categories[0];
   const vaultGroups = dedupeDocuments(documents);
+  const hasPersonalContext = Boolean(
+    profile?.branch ||
+    profile?.state ||
+    profile?.current_rating ||
+    profile?.work_status ||
+    profile?.service_status ||
+    documents.length
+  );
 
   // Build live evidence inventory from real uploaded documents
   const uploadedCategories = new Set(documents.map((d) => d.category));
@@ -1179,6 +1198,46 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
 
   const completedCount = liveEvidenceInventory.filter((i) => i.status === "Complete").length;
   const totalCount = liveEvidenceInventory.length;
+  const evidenceReadinessScore = Math.round((completedCount / totalCount) * 100);
+
+  if (!hasPersonalContext) {
+    return (
+      <div style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", color: "#172132" }}>
+        <Card title="Start This Veteran's Workspace" sub="This account has no veteran-specific profile or uploaded evidence yet." badge="Blank profile">
+          <div style={{ padding: "10px 12px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0", marginBottom: 12 }}>
+            <strong style={{ display: "block", color: "#8a6319", fontSize: 12 }}>Private workspace is empty</strong>
+            <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12, lineHeight: 1.45 }}>
+              Complete the Veteran Profile and upload this veteran's own documents before the navigator builds a journey, evidence map, or VSO packet.
+            </p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }} className="nonVaLaneGrid">
+            {[
+              "Enter branch, state, rating, work status, and dependents.",
+              "Upload VA letters, rating decisions, service records, medical records, or SSDI records.",
+              "Use the Possibility Library to learn what questions may apply.",
+              "Generate VSO-ready questions only after this veteran's evidence is present.",
+            ].map((item) => (
+              <div key={item} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
+                <p style={{ margin: 0, color: "#667184", fontSize: 12, lineHeight: 1.45 }}>{item}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card title="Evidence Inventory" sub="Everything starts missing until this veteran uploads or enters their own records." badge={`0/${totalCount} complete`}>
+          {liveEvidenceInventory.map((item) => (
+            <div key={item.category} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 5 }}>
+              <div>
+                <strong style={{ fontSize: 13 }}>{item.category}</strong>
+                <p style={{ margin: "1px 0 0", fontSize: 11, color: "#667184" }}>{item.note}</p>
+              </div>
+              <Pill label="Missing" />
+            </div>
+          ))}
+        </Card>
+      </div>
+    );
+  }
 
   function copyBrief() {
     const text = briefSections.map((s) => `${s.title}\n${s.points.map((p) => `- ${p}`).join("\n")}`).join("\n\n");
@@ -1201,10 +1260,10 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
       {/* Goal Test */}
       <Card title="Can this beat a folder full of PDFs?" sub="The client should leave with a clearer story, not just a better file cabinet.">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
-          {[{ label: "Known now", value: "18", title: "Verified facts extracted", text: "Service, rating, award, P&T status, FMP, federal preference, and VA loan details visible without opening each PDF." },
-            { label: "Translated", value: "4", title: "Documents explained", text: "The app explains what each key letter says and why it matters to benefits, claims research, or next actions." },
-            { label: "Unblocked", value: "6", title: "Benefit lanes organized", text: "Federal, Florida, FMP/Health, Owner/Buyer, Schedular Review, and No Dependents separated into clear lanes." },
-            { label: "Still open", value: "2", title: "Critical gaps named", text: "Individual rating breakdown and SSDI-to-service-connected condition mapping remain the biggest unanswered questions." }].map((item) => (
+          {[{ label: "Known now", value: String(completedCount), title: "Evidence categories present", text: "Verified facts appear here only after this veteran uploads or saves their own records." },
+            { label: "Translated", value: String(documents.length), title: "Documents available", text: "The app explains uploaded documents and why they matter to benefits, claims research, or next actions." },
+            { label: "Unblocked", value: String(Math.max(0, completedCount - 1)), title: "Benefit lanes started", text: "Federal, state, health, housing, work, and family lanes unlock as evidence is added." },
+            { label: "Still open", value: String(totalCount - completedCount), title: "Evidence gaps named", text: "Missing categories remain visible so the veteran knows what to gather next." }].map((item) => (
             <div key={item.label} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: "#267a56", textTransform: "uppercase" as const }}>{item.label}</span>
               <div style={{ fontSize: 32, fontWeight: 900, lineHeight: 1.1, margin: "3px 0" }}>{item.value}</div>
@@ -1349,7 +1408,7 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
           </div>
         ))}
         <h3 style={{ margin: "12px 0 8px", fontSize: 14 }}>SSDI Mapping</h3>
-        {["What conditions are listed on the SSDI award or BPQY?", "Which SSDI conditions match the FMP service-connected list?", "Which conditions affect work but are not yet VA service-connected?", "Which evidence supports schedular increase rather than TDIU?"].map((item, i) => (
+        {["What conditions are listed on the SSDI award or BPQY?", "Which SSDI conditions match the veteran's service-connected condition list?", "Which conditions affect work but are not yet VA service-connected?", "Which evidence supports schedular increase versus TDIU discussion?"].map((item, i) => (
           <label key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 7, cursor: "pointer", marginBottom: 5 }}>
             <input type="checkbox" />
             <span style={{ fontSize: 13 }}>{item}</span>
@@ -1384,21 +1443,21 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
       </Card>
 
       {/* Readiness Score */}
-      <Card title="Readiness Score" sub="Service, preference, FMP, benefit-summary, and home-loan documents are present. Schedular evidence and exact rating breakdown remain the main gaps.">
+      <Card title="Readiness Score" sub="Based only on this account's uploaded evidence inventory. More records improve the preparation picture.">
         <div style={{ textAlign: "center" as const, marginBottom: 14, minWidth: 120 }}>
           <div style={{ display: "inline-flex", flexDirection: "column" as const, alignItems: "center", whiteSpace: "nowrap" as const }}>
-            <div style={{ fontSize: 64, fontWeight: 900, lineHeight: 0.95, whiteSpace: "nowrap" as const }}>94</div>
+            <div style={{ fontSize: 64, fontWeight: 900, lineHeight: 0.95, whiteSpace: "nowrap" as const }}>{evidenceReadinessScore}</div>
             <div style={{ fontSize: 12, color: "#667184", whiteSpace: "nowrap" as const }}>ready</div>
           </div>
         </div>
-        {[{ label: "Known likely", value: 18 }, { label: "High-priority review", value: 4 }, { label: "Needs answers", value: 2 }].map((item) => (
+        {[{ label: "Uploaded evidence categories", value: completedCount }, { label: "Missing evidence categories", value: totalCount - completedCount }, { label: "Documents uploaded", value: documents.length }].map((item) => (
           <div key={item.label} style={{ display: "flex", justifyContent: "space-between", padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 5 }}>
             <span style={{ fontSize: 13 }}>{item.label}</span><strong>{item.value}</strong>
           </div>
         ))}
         <div style={{ marginTop: 10, padding: "11px 13px", border: "1px solid #b98922", borderRadius: 8, background: "#fbefd0" }}>
-          <strong style={{ fontSize: 12, color: "#b98922" }}>⚠ Evidence map improved</strong>
-          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#b98922" }}>Use the FMP condition list and SSDI basis to map schedular evidence, worsening, and residuals.</p>
+          <strong style={{ fontSize: 12, color: "#b98922" }}>Evidence map</strong>
+          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#b98922" }}>Upload rating decisions, medical records, SSDI records, and employment history to improve this preparation score.</p>
         </div>
       </Card>
 
@@ -1471,11 +1530,12 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
 
 export function NonVaBenefits({ profile }: { profile: Profile }) {
   const state = stateDisplay(profile?.state);
-  const branch = profile?.branch || "Air Force";
+  const branch = profile?.branch || "Add branch";
   const rating = ratingDisplay(profile?.current_rating);
   const benefitSource = branchBenefitSource(branch);
   const selectedStateLanes = nationwideStateBenefitLanes(state, branch);
   const readyCount = selectedStateLanes.filter((lane) => ["Ready", "Strong", "High", "Likely", "Start Here", "Federal", "Branch"].includes(lane.level)).length;
+  const hasState = Boolean(profile?.state);
 
   return (
     <div style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", color: "#172132" }}>
@@ -1484,6 +1544,14 @@ export function NonVaBenefits({ profile }: { profile: Profile }) {
         sub={`State, federal, county, retail, housing, and career opportunities for a ${branch} veteran in ${state} with ${rating} service connection.`}
         badge={`${readyCount} priority lanes`}
       >
+        {!hasState ? (
+          <div style={{ padding: "10px 12px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0", marginBottom: 12 }}>
+            <strong style={{ display: "block", color: "#8a6319", fontSize: 12 }}>Select this veteran's state first</strong>
+            <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12, lineHeight: 1.45 }}>
+              State, DMV, property tax, parks, and local benefits vary by residence. Save a state in Veteran Profile to personalize this section.
+            </p>
+          </div>
+        ) : null}
         <div className="nonVaStatsGrid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, marginBottom: 14 }}>
           {[
             { label: "State", value: state, text: state === "Florida" ? "parks, tax, county steps" : "state benefits guide" },
@@ -1506,9 +1574,13 @@ export function NonVaBenefits({ profile }: { profile: Profile }) {
               Change the state or branch in Veteran Profile, save, and this section updates for that state, territory, and component.
             </p>
           </div>
-          <a href={stateBenefitsUrl(state, branch)} target="_blank" rel="noreferrer" style={{ color: "#315f9e", fontSize: 12, fontWeight: 850, whiteSpace: "nowrap", textDecoration: "none" }}>
-            Open state guide
-          </a>
+          {hasState ? (
+            <a href={stateBenefitsUrl(state, branch)} target="_blank" rel="noreferrer" style={{ color: "#315f9e", fontSize: 12, fontWeight: 850, whiteSpace: "nowrap", textDecoration: "none" }}>
+              Open state guide
+            </a>
+          ) : (
+            <span style={{ color: "#667184", fontSize: 12, fontWeight: 850, whiteSpace: "nowrap" }}>State needed</span>
+          )}
         </div>
 
         <div className="nonVaLaneGrid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
@@ -1696,14 +1768,12 @@ export function BenefitsPossibilityLibrary({ profile, documents = [] }: { profil
 // ─── Knowledge Graph Lab ──────────────────────────────────────────────────────
 
 const graphDocuments = [
-  { id: 1, name: "benefit_summary.pdf", tags: ["VA Decision"], verified: true, linkedConditions: [], linkedEvents: ["VA rating - 90% SC"], notes: "90% combined, $2,362.30/mo, not P&T." },
-  { id: 2, name: "certificate_of_eligibility_home_loan.pdf", tags: ["VA Decision", "Housing"], verified: true, linkedConditions: [], linkedEvents: ["VA home loan COE"], notes: "Chapter 37 eligible, funding-fee exempt, $87,575 prior entitlement charged." },
-  { id: 3, name: "service_verification.pdf", tags: ["Service"], verified: true, linkedConditions: [], linkedEvents: ["Air Force service"], notes: "Confirms honorable Air Force service Aug. 20, 1985 to May 24, 1988." },
-  { id: 4, name: "proof_of_service.pdf", tags: ["Service"], verified: true, linkedConditions: [], linkedEvents: ["Air Force service"], notes: "Proof of honorable service document." },
-  { id: 5, name: "foreign_medical_program.pdf", tags: ["Medical", "VA Decision"], verified: true, linkedConditions: ["Sleep apnea", "Depression", "Lumbar spine", "Radiculopathy", "Tinnitus", "Knee condition", "Skin condition"], linkedEvents: ["VA rating - 90% SC"], notes: "FMP authorized and lists VA-adjudicated service-connected conditions." },
-  { id: 6, name: "civil_service.pdf", tags: ["Employment"], verified: true, linkedConditions: [], linkedEvents: ["Federal preference"], notes: "30%+ SC preference confirmed for federal hiring lane." },
-  { id: 7, name: "Needed: SSDI award/BPQY", tags: ["SSDI", "Missing"], verified: false, linkedConditions: ["Sleep apnea", "Depression", "Lumbar spine", "Radiculopathy"], linkedEvents: ["Employment impact"], notes: "Needed to confirm the SSA-recognized medical basis." },
-  { id: 8, name: "Needed: aortic surgery records", tags: ["Surgery", "Missing"], verified: false, linkedConditions: ["Aortic / vascular residuals"], linkedEvents: ["Major aortic surgery", "Dialysis episode", "Residual numbness"], notes: "Needed for operative chronology, follow-up care, scars, dialysis, and residual symptoms." },
+  { id: 1, name: "Needed: benefit summary or rating decision", tags: ["VA Decision", "Missing"], verified: false, linkedConditions: [], linkedEvents: ["Current VA status"], notes: "Needed to verify combined rating, individual ratings, effective dates, and reasons." },
+  { id: 2, name: "Needed: COE if housing matters", tags: ["Housing", "Missing"], verified: false, linkedConditions: [], linkedEvents: ["VA home loan review"], notes: "Needed to review home loan eligibility, funding-fee status, and entitlement questions." },
+  { id: 3, name: "Needed: DD-214 or service verification", tags: ["Service", "Missing"], verified: false, linkedConditions: [], linkedEvents: ["Military service"], notes: "Needed to verify branch, service dates, character of service, and occupation." },
+  { id: 4, name: "Needed: medical records", tags: ["Medical", "Missing"], verified: false, linkedConditions: [], linkedEvents: ["Current medical picture"], notes: "Needed to map diagnoses, treatment, current symptoms, and functional impact." },
+  { id: 5, name: "Needed: SSDI award/BPQY if applicable", tags: ["SSDI", "Missing"], verified: false, linkedConditions: [], linkedEvents: ["Employment impact"], notes: "Needed only when SSA/SSDI context is part of this veteran's story." },
+  { id: 6, name: "Needed: employment timeline if applicable", tags: ["Employment", "Missing"], verified: false, linkedConditions: [], linkedEvents: ["Work history"], notes: "Needed for work impact, TDIU conversations, and vocational context." },
 ];
 
 const graphConditions = [
@@ -1711,18 +1781,16 @@ const graphConditions = [
   { id: 2, name: "Depression", category: "Mental health", vaSC: true, ssdi: true, evidenceItems: [{ label: "Diagnosis documented", done: true }, { label: "Treatment history", done: false }, { label: "Secondary nexus to pain or sleep documented", done: false }, { label: "Current symptom statement", done: false }, { label: "Functional impact on daily life", done: false }], notes: "Potentially connected to chronic pain and sleep disruption; needs provider records.", whatChangedPrompts: ["Mood changes", "Sleep and pain interaction", "Social or work impairment"] },
   { id: 3, name: "Lumbar spine", category: "Musculoskeletal", vaSC: true, ssdi: true, evidenceItems: [{ label: "Original diagnosis on file", done: true }, { label: "Recent imaging", done: false }, { label: "Range of motion documented", done: false }, { label: "Current treatment records", done: false }, { label: "Functional limitation statement", done: false }], notes: "Needs recent imaging, range-of-motion evidence, and daily limitation details.", whatChangedPrompts: ["Mobility loss", "Flare frequency", "Sitting, standing, lifting limits"] },
   { id: 4, name: "Radiculopathy", category: "Neurological", vaSC: true, ssdi: true, evidenceItems: [{ label: "Diagnosis documented", done: true }, { label: "Nexus to lumbar spine documented", done: false }, { label: "Nerve study or neurological exam", done: false }, { label: "Symptom frequency and severity statement", done: false }], notes: "Likely tied to lumbar spine, but severity and laterality need stronger documentation.", whatChangedPrompts: ["Numbness pattern", "Pain radiation", "Falls, weakness, or foot symptoms"] },
-  { id: 5, name: "Aortic / vascular residuals", category: "Cardiovascular", vaSC: false, ssdi: false, evidenceItems: [{ label: "Operative records for aortic surgery", done: false }, { label: "Dialysis episode records", done: false }, { label: "Post-surgical follow-up records", done: false }, { label: "Residual numbness documented by provider", done: false }, { label: "Scar documentation", done: false }, { label: "Nexus theory reviewed by accredited help", done: false }], notes: "Major unexplored lane. Needs records before anyone can responsibly assess a theory.", whatChangedPrompts: ["Surgery recovery", "Dialysis duration", "Residual numbness, scars, monitoring"] },
+  { id: 5, name: "Major medical event / residuals", category: "Residuals", vaSC: false, ssdi: false, evidenceItems: [{ label: "Hospital or operative records", done: false }, { label: "Complication records if applicable", done: false }, { label: "Follow-up care records", done: false }, { label: "Residual symptoms documented by provider", done: false }, { label: "Scar documentation if applicable", done: false }, { label: "Nexus theory reviewed by accredited help", done: false }], notes: "Unexplored residual lanes need records before anyone can responsibly assess a theory.", whatChangedPrompts: ["Recovery timeline", "Complications", "Residual symptoms, scars, monitoring"] },
 ];
 
 const graphEvents = [
-  { year: "1985-1988", label: "Air Force service", verified: true },
-  { year: "Apr 2026", label: "VA rating - 90% SC", verified: true },
-  { year: "Unknown", label: "Sleep apnea onset / CPAP", verified: false },
-  { year: "~2007", label: "Aortic event - initial diagnosis", verified: false },
-  { year: "2025", label: "Major aortic surgery", verified: false },
-  { year: "2025", label: "Dialysis episode", verified: false },
-  { year: "2025-now", label: "Residual numbness and monitoring", verified: false },
-  { year: "Mar 2026", label: "VA home loan COE", verified: true },
+  { year: "Service period", label: "Military service", verified: false },
+  { year: "Current", label: "VA rating status", verified: false },
+  { year: "Current", label: "Current service-connected conditions", verified: false },
+  { year: "Current", label: "Medical treatment and medications", verified: false },
+  { year: "Current", label: "Employment or SSDI context", verified: false },
+  { year: "Current", label: "Housing / COE context", verified: false },
 ];
 
 function conditionReadiness(c: typeof graphConditions[0]) {
@@ -1884,7 +1952,7 @@ export function KnowledgeGraphLab() {
           <div style={{ padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 10 }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: "#267a56", textTransform: "uppercase" as const }}>VSO-ready questions</span>
             <ol style={{ margin: "6px 0 0", paddingLeft: 18 }}>
-              {["For dual-confirmed conditions (Sleep apnea, Depression, Lumbar spine, Radiculopathy), what individual ratings are currently assigned and which are evidence-ready for schedular review?", "For evidence-gap conditions, what specific records should be gathered first?", "How should aortic surgery, dialysis episode, residual numbness, scars, and monitoring be developed before any claim theory is considered?", "Given the preference for schedular review, what path preserves future consulting or employment options?"].map((q, i) => <li key={i} style={{ fontSize: 12, color: "#667184", marginBottom: 4 }}>{q}</li>)}
+              {["For conditions that appear in both VA and SSA evidence, what individual ratings are assigned and which are evidence-ready for review?", "For evidence-gap conditions, what specific records should be gathered first?", "How should surgeries, hospitalizations, complications, scars, residual symptoms, and monitoring be developed before any theory is considered?", "Which path best matches the veteran's work, education, business, or retirement goals?"].map((q, i) => <li key={i} style={{ fontSize: 12, color: "#667184", marginBottom: 4 }}>{q}</li>)}
             </ol>
           </div>
           <p style={{ fontSize: 11, color: "#b98922", textAlign: "center" as const }}>Preparation tool only. Review with an accredited VSO, claims attorney, or qualified representative before filing.</p>
@@ -1896,7 +1964,7 @@ export function KnowledgeGraphLab() {
         <div>
           <div style={{ padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 12 }}>
             <strong style={{ fontSize: 13 }}>{ssdiSelected.length >= 3 ? "Strong SSDI-to-SC overlap" : ssdiSelected.length ? "Partial overlap" : "No SSDI conditions selected"}</strong>
-            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#667184" }}>Your FMP authorization lists VA-adjudicated conditions. Your SSDI file lists what SSA recognized as disabling. Where they overlap, the app can build better questions for schedular review.</p>
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#667184" }}>VA records list adjudicated service-connected conditions. SSA records list what SSA recognized as disabling. Where they overlap, the app can build better educational questions for representative review.</p>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 12 }}>
             {graphConditions.map((c) => (
@@ -1941,7 +2009,7 @@ export function ClaimReviewCoach() {
       <div style={{ marginBottom: 10 }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: "#267a56", textTransform: "uppercase" as const }}>Phase 1 — Veteran Profile</span>
         <div style={{ display: "grid", gap: 5, marginTop: 6 }}>
-          {[{ label: "AFSC/MOS", value: "27132 – APR Operations Resources / Flight Ops Specialist" }, { label: "Surgeries", value: "Aortic aneurysm history; major aortic surgery 2025; dialysis episode 2025" }, { label: "Medications", value: "Sacubitril/Valsartan, Metoprolol, Rivaroxaban, Amlodipine, Empagliflozin, Rosuvastatin, Famotidine" }, { label: "Dependents", value: "None" }].map((item) => (
+          {[{ label: "MOS/AFSC", value: "Add military occupation from DD-214 or service records" }, { label: "Medical events", value: "Add surgeries, hospitalizations, injuries, or major diagnoses from records" }, { label: "Medications", value: "Add current medication list and prescribing source" }, { label: "Dependents", value: "Add spouse, child, parent, caregiver, or none" }].map((item) => (
             <div key={item.label} style={{ padding: "8px 10px", border: "1px solid #d9dfd5", borderRadius: 7, display: "flex", gap: 10 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: "#267a56", minWidth: 100 }}>{item.label}</span>
               <span style={{ fontSize: 12, color: "#172132" }}>{item.value}</span>
@@ -1954,7 +2022,7 @@ export function ClaimReviewCoach() {
       <div style={{ marginBottom: 10 }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: "#267a56", textTransform: "uppercase" as const }}>Phase 2 — Opportunity Scanner</span>
         <div style={{ display: "grid", gap: 5, marginTop: 6 }}>
-          {[{ status: "Review", title: "Schedular 90-to-100 path", text: "Preserves future work and consulting options. Needs individual ratings, worsening evidence, and secondary/residual theories." }, { status: "Research", title: "Secondary conditions", text: "Use spine, radiculopathy, sleep apnea, depression, knee, tinnitus, and skin conditions as the starting map." }, { status: "Investigate", title: "Post-surgical residuals", text: "Aortic surgery, aneurysm history, dialysis episode, numbness, scars, and follow-up care should be organized for VSO review." }].map((item) => (
+          {[{ status: "Review", title: "Schedular rating path", text: "Needs individual ratings, current symptoms, worsening evidence, and accredited review." }, { status: "Research", title: "Secondary conditions", text: "Use currently service-connected conditions as the starting map for educational discussion topics." }, { status: "Investigate", title: "Residuals and major medical events", text: "Surgeries, hospitalizations, scars, nerve symptoms, and follow-up care should be organized before VSO review." }].map((item) => (
             <div key={item.title} style={{ padding: "8px 10px", border: "1px solid #d9dfd5", borderRadius: 7 }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: statusColor(item.status), textTransform: "uppercase" as const }}>{item.status}</span>
               <strong style={{ display: "block", fontSize: 13 }}>{item.title}</strong>
@@ -1968,7 +2036,7 @@ export function ClaimReviewCoach() {
       <div style={{ marginBottom: 10 }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: "#267a56", textTransform: "uppercase" as const }}>Phase 3 — Evidence Readiness</span>
         <div style={{ display: "grid", gap: 5, marginTop: 6 }}>
-          {[{ label: "Ready", title: "Service, rating, COE, FMP, civil preference", text: "Core documents are captured and can support benefit verification." }, { label: "Needs evidence", title: "Schedular increase map", text: "Need individual ratings, last exam dates, worsening evidence, and functional impact statements." }, { label: "Insufficient", title: "Surgery residual claim theory", text: "Need medical records, diagnosis links, chronology, nexus theory, and accredited review." }].map((item) => (
+          {[{ label: "Ready", title: "Uploaded evidence", text: "Uploaded documents can support benefit verification after they are associated with this veteran." }, { label: "Needs evidence", title: "Rating and symptom map", text: "Need individual ratings, last exam dates, worsening evidence, and functional impact statements." }, { label: "Insufficient", title: "New or residual review theory", text: "Need medical records, diagnosis links, chronology, nexus theory, and accredited review." }].map((item) => (
             <div key={item.title} style={{ padding: "8px 10px", border: "1px solid #d9dfd5", borderRadius: 7 }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: statusColor(item.label), textTransform: "uppercase" as const }}>{item.label}</span>
               <strong style={{ display: "block", fontSize: 13 }}>{item.title}</strong>
@@ -2007,13 +2075,13 @@ export function ClaimReviewCoach() {
 
 export function DocumentTranslator() {
   const docs = [
-    { name: "Benefit summary", says: "90% combined, monthly award, not P&T.", matters: "Anchors current VA status and separates verified benefits from conditional P&T-only benefits." },
-    { name: "FMP authorization", says: "Lists VA-adjudicated service-connected conditions.", matters: "Creates the condition map for health care abroad, secondary-condition research, and schedular evidence review." },
-    { name: "Home-loan COE", says: "VA loan eligible, funding-fee exempt, prior entitlement charged.", matters: "Turns home buying from a vague goal into entitlement restoration and remaining-entitlement questions." },
-    { name: "Civil-service letter", says: "Honorable separation and 30%+ service-connected compensation.", matters: "Supports federal hiring preference and confirms a benefit lane outside claims." },
-    { name: "DD-214", says: "Air Force, E-3, honorable discharge Aug 1985 – May 1988, AFSC 27132.", matters: "Primary service verification for all VA benefits; establishes eligibility foundation." },
-    { name: "SSA Benefit Verification", says: "SSDI $2,994/mo, disabled June 20, 2020, Medicare enrolled Dec 2022.", matters: "Confirms SSA disability basis, onset date, and Medicare coverage — critical for SSDI-to-SC mapping." },
-    { name: "Medication list", says: "Heart, blood pressure, blood thinner, diabetes, cholesterol, eye, and GI medications from Orlando VAMC.", matters: "Documents active treatment and functional burden; supports worsening and secondary condition evidence." },
+    { name: "Benefit summary", says: "Shows current combined rating, payment information, and some status indicators.", matters: "Anchors current VA status and separates verified benefits from conditional benefits." },
+    { name: "Rating decision", says: "Explains individual conditions, ratings, effective dates, evidence considered, and reasons for decision.", matters: "Creates the evidence map for increases, secondary-condition discussions, appeals, or missing documentation." },
+    { name: "Home-loan COE", says: "Shows VA loan eligibility, funding-fee status, and entitlement information.", matters: "Turns home buying into concrete questions about lender review, entitlement, restoration, and state property benefits." },
+    { name: "Civil-service letter", says: "May confirm service-connected compensation level for federal employment preference.", matters: "Supports federal hiring preference and employment-related benefit lanes outside claims." },
+    { name: "DD-214 / service verification", says: "Shows branch, service dates, character of service, and military occupation when available.", matters: "Primary service verification for many VA, state, county, education, employment, and recreation benefits." },
+    { name: "SSA / SSDI records", says: "May show SSA disability status, onset date, Medicare timing, work history, and medical basis.", matters: "Helps compare SSA and VA evidence while keeping the two systems legally separate." },
+    { name: "Medication list / treatment records", says: "Shows active care, medication burden, specialist visits, tests, and current symptoms.", matters: "Documents the current medical picture and functional impact for VSO conversations." },
   ];
 
   return (

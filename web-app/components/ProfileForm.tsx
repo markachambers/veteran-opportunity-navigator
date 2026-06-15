@@ -53,15 +53,15 @@ type Profile = {
 export function ProfileForm({ profile }: { profile: Profile }) {
   const savedRating = profile?.current_rating || "";
   const rankFromRating = /^(E|O|W)-?[0-9]$/i.test(savedRating) ? savedRating.toUpperCase().replace(/^([EOW])([0-9])$/, "$1-$2") : "";
-  const normalizedState = stateAliases[(profile?.state || "").toUpperCase()] || profile?.state || "Florida";
+  const normalizedState = stateAliases[(profile?.state || "").toUpperCase()] || profile?.state || "";
   const fields = [
-    { name: "display_name", label: "Preferred display name", placeholder: "Mark Chambers", value: profile?.display_name || "" },
-    { name: "rank_pay_grade", label: "Rank / pay grade", placeholder: "E-3", value: profile?.rank_pay_grade || rankFromRating },
-    { name: "work_status", label: "Current work / SSDI status", placeholder: "Unemployed and on SSDI", value: profile?.work_status || "" },
-    { name: "monthly_award", label: "Monthly VA award", placeholder: "$2,362.30", value: profile?.monthly_award || "" },
-    { name: "va_loan_status", label: "VA loan status", placeholder: "Funding-fee exempt", value: profile?.va_loan_status || "" },
-    { name: "federal_preference_status", label: "Federal preference", placeholder: "30%+", value: profile?.federal_preference_status || "" },
-    { name: "fmp_status", label: "Foreign Medical Program", placeholder: "Authorized", value: profile?.fmp_status || "" },
+    { name: "display_name", label: "Preferred display name", placeholder: "Preferred name", value: profile?.display_name || "" },
+    { name: "rank_pay_grade", label: "Rank / pay grade", placeholder: "Example: E-5", value: profile?.rank_pay_grade || rankFromRating },
+    { name: "work_status", label: "Current work / SSDI status", placeholder: "Example: working, unemployed, retired, SSDI", value: profile?.work_status || "" },
+    { name: "monthly_award", label: "Monthly VA award", placeholder: "Optional", value: profile?.monthly_award || "" },
+    { name: "va_loan_status", label: "VA loan status", placeholder: "Optional", value: profile?.va_loan_status || "" },
+    { name: "federal_preference_status", label: "Federal preference", placeholder: "Optional", value: profile?.federal_preference_status || "" },
+    { name: "fmp_status", label: "Foreign Medical Program", placeholder: "Optional", value: profile?.fmp_status || "" },
   ];
 
   return (
@@ -74,7 +74,8 @@ export function ProfileForm({ profile }: { profile: Profile }) {
       ))}
       <label className="factField">
         <span>Branch or component</span>
-        <select name="branch" defaultValue={profile?.branch || "Air Force"}>
+        <select name="branch" defaultValue={profile?.branch || ""}>
+          <option value="">Select branch or component</option>
           {branches.map((branch) => (
             <option key={branch} value={branch}>{branch}</option>
           ))}
@@ -99,6 +100,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
       <label className="factField">
         <span>State or territory of residence</span>
         <select name="state" defaultValue={normalizedState}>
+          <option value="">Select state or territory</option>
           {states.map((state) => (
             <option key={state} value={state}>{state}</option>
           ))}
