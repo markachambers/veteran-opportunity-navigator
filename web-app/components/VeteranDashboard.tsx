@@ -149,6 +149,150 @@ const nonVaBenefitLanes = [
   },
 ];
 
+function slugifyState(state: string) {
+  return encodeURIComponent(state).replace(/%20/g, "-");
+}
+
+function branchBenefitSource(branch?: string | null) {
+  const normalized = branch?.toLowerCase() || "";
+  if (normalized.includes("army") || normalized.includes("guard") || normalized.includes("reserve")) {
+    return {
+      label: "MyArmyBenefits",
+      stateBase: "https://myarmybenefits.us.army.mil/Benefit-Library/State/Territory-Benefits",
+      federalUrl: "https://myarmybenefits.us.army.mil/Benefit-Library",
+    };
+  }
+
+  if (normalized.includes("air") || normalized.includes("space")) {
+    return {
+      label: "MyAirForceBenefits",
+      stateBase: "https://myairforcebenefits.us.af.mil/Benefit-Library/State/Territory-Benefits",
+      federalUrl: "https://myairforcebenefits.us.af.mil/Benefit-Library/Federal-Benefits?type=A+to+Z",
+    };
+  }
+
+  return {
+    label: "Military OneSource",
+    stateBase: "https://myairforcebenefits.us.af.mil/Benefit-Library/State/Territory-Benefits",
+    federalUrl: "https://www.militaryonesource.mil/benefits/benefits-finder/",
+  };
+}
+
+function stateBenefitsUrl(state: string, branch?: string | null) {
+  const source = branchBenefitSource(branch);
+  return `${source.stateBase}/${slugifyState(state)}`;
+}
+
+function stateDisplay(state?: string | null) {
+  return state?.trim() || "Florida";
+}
+
+function nationwideStateBenefitLanes(state: string, branch?: string | null) {
+  if (state === "Florida") return nonVaBenefitLanes;
+
+  const source = branchBenefitSource(branch);
+  const guideUrl = stateBenefitsUrl(state, branch);
+
+  return [
+    {
+      area: `${state} State Benefits Guide`,
+      level: "Start Here",
+      why: `${state} may offer state-specific benefits for veterans and families, including tax, education, employment, licensing, parks, and local assistance programs.`,
+      next: `Open the ${state} state benefits guide, then save the highest-value items into this veteran's action list.`,
+      source: `${source.label} state/territory benefits`,
+      sourceUrl: guideUrl,
+    },
+    {
+      area: `${state} Veteran Affairs Office`,
+      level: "High",
+      why: "Every state or territory has veteran affairs resources or partner offices that can explain resident benefits and local application steps.",
+      next: "Find the state veteran affairs office, then ask for county/local VSO contacts and benefit guides for the veteran's county.",
+      source: "NASDVA state directory",
+      sourceUrl: "https://nasdva.us/resources/",
+    },
+    {
+      area: "Property Tax / Housing",
+      level: "Investigate",
+      why: "Many states have property tax exemptions, homestead add-ons, housing loans, home modification programs, or disabled-veteran housing benefits.",
+      next: `Check ${state} resident rules, disability-rating thresholds, P&T requirements, surviving spouse rules, and county filing deadlines.`,
+      source: "State benefits guide",
+      sourceUrl: guideUrl,
+    },
+    {
+      area: "DMV / License Plates",
+      level: "Check",
+      why: "Most states have veteran designations, veteran plates, disabled-veteran plates, or fee exemptions, but requirements vary widely.",
+      next: "Check driver-license veteran designation, vehicle registration, disabled-veteran plate, parking, and title/initial-fee rules.",
+      source: "State benefits guide",
+      sourceUrl: guideUrl,
+    },
+    {
+      area: "Education for Veteran / Family",
+      level: "Check",
+      why: "State education benefits may include tuition waivers, in-state tuition, scholarships, dependent benefits, or National Guard programs.",
+      next: "Separate benefits for the veteran, spouse, dependents, survivors, and National Guard members; confirm residency and rating requirements.",
+      source: "State benefits guide",
+      sourceUrl: guideUrl,
+    },
+    {
+      area: `${branch || "Military"} Federal Benefits`,
+      level: "Branch",
+      why: "Some federal benefit explainers and resource locators are organized by branch/component, life event, and family role.",
+      next: "Use the branch-aware federal benefits library to check family, survivor, retirement, Reserve/Guard, and recently separated categories.",
+      source: source.label,
+      sourceUrl: source.federalUrl,
+    },
+    {
+      area: "Parks, Hunting, Fishing",
+      level: "Investigate",
+      why: "Many states offer park passes, camping discounts, hunting/fishing discounts, or free licenses for disabled veterans.",
+      next: "Check state parks, fish and wildlife, and local recreation sites before travel or annual license renewal.",
+      source: "State benefits guide",
+      sourceUrl: guideUrl,
+    },
+    {
+      area: "Employment / Business",
+      level: "Check",
+      why: "State programs may include hiring preference, workforce training, veteran-owned business certification, fee waivers, or small business help.",
+      next: "Check state hiring preference, occupational license fee waivers, workforce grants, and veteran-owned business resources.",
+      source: "State benefits guide",
+      sourceUrl: guideUrl,
+    },
+    {
+      area: "Emergency / Local Assistance",
+      level: "Local",
+      why: "Some benefits are county, city, nonprofit, or emergency-assistance programs rather than statewide VA programs.",
+      next: "Add county and ZIP code to the future profile so the app can search local veteran service offices, food, transportation, utilities, legal aid, and nonprofit help.",
+      source: "State and county research lane",
+      sourceUrl: "https://www.va.gov/find-locations/",
+    },
+    {
+      area: "Commissary, Exchange, MWR",
+      level: "Federal",
+      why: "This lane follows federal/DoD rules rather than state rules and may apply nationwide to honorably discharged veterans with service-connected disability ratings.",
+      next: "Confirm VHIC access indicator and installation access rules before visiting.",
+      source: "VA.gov",
+      sourceUrl: "https://www.va.gov/resources/commissary-and-exchange-privileges-for-veterans/",
+    },
+    {
+      area: "National Parks / Federal Recreation",
+      level: "Federal",
+      why: "U.S. military veterans are eligible for a free Military Lifetime Pass for national parks and other federal recreation lands.",
+      next: "Apply online or ask at a participating federal recreation site; keep proof of veteran status available.",
+      source: "National Park Service",
+      sourceUrl: "https://www.nps.gov/planyourvisit/veterans-and-gold-star-families-free-access.htm",
+    },
+    {
+      area: "Theme Park / Holiday Perks",
+      level: "Seasonal",
+      why: "Merchant, attraction, Memorial Day, Military Appreciation Month, and Veterans Day offers are national or regional and change by date.",
+      next: "Check ID.me/SheerID status and official merchant pages before travel or holidays.",
+      source: "United Parks Waves of Honor",
+      sourceUrl: "https://unitedparks.com/programs/waves-of-honor/",
+    },
+  ];
+}
+
 const seasonalPerks = [
   {
     window: "January",
@@ -572,23 +716,26 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
 }
 
 export function NonVaBenefits({ profile }: { profile: Profile }) {
-  const state = profile?.state || "Florida";
+  const state = stateDisplay(profile?.state);
+  const branch = profile?.branch || "Air Force";
   const rating = profile?.current_rating || "90%";
-  const readyCount = nonVaBenefitLanes.filter((lane) => ["Ready", "Strong", "High", "Likely"].includes(lane.level)).length;
+  const benefitSource = branchBenefitSource(branch);
+  const selectedStateLanes = nationwideStateBenefitLanes(state, branch);
+  const readyCount = selectedStateLanes.filter((lane) => ["Ready", "Strong", "High", "Likely", "Start Here", "Federal", "Branch"].includes(lane.level)).length;
 
   return (
     <div style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", color: "#172132" }}>
       <Card
         title="Non-VA Benefits Navigator"
-        sub={`State, federal, county, retail, housing, and career opportunities for a ${state} veteran with ${rating} service connection.`}
+        sub={`State, federal, county, retail, housing, and career opportunities for a ${branch} veteran in ${state} with ${rating} service connection.`}
         badge={`${readyCount} priority lanes`}
       >
         <div className="nonVaStatsGrid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, marginBottom: 14 }}>
           {[
-            { label: "State", value: "Florida", text: "parks, tax, county steps" },
-            { label: "Federal", value: "30%+", text: "hiring preference lane" },
+            { label: "State", value: state, text: state === "Florida" ? "parks, tax, county steps" : "state benefits guide" },
+            { label: "Branch", value: branch, text: benefitSource.label },
             { label: "Lifestyle", value: "MWR", text: "commissary / exchange review" },
-            { label: "Housing", value: "COE", text: "buyer strategy" },
+            { label: "Family", value: "Spouse+", text: "dependent / survivor checks" },
           ].map((item) => (
             <div key={item.label} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
               <span style={{ fontSize: 10, color: "#267a56", fontWeight: 800, textTransform: "uppercase" as const }}>{item.label}</span>
@@ -598,8 +745,20 @@ export function NonVaBenefits({ profile }: { profile: Profile }) {
           ))}
         </div>
 
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 10, background: "#fff" }}>
+          <div>
+            <strong style={{ fontSize: 13 }}>{state} selected</strong>
+            <p style={{ margin: "2px 0 0", color: "#667184", fontSize: 12 }}>
+              Change the state or branch in Veteran Profile, save, and this section updates for that state, territory, and component.
+            </p>
+          </div>
+          <a href={stateBenefitsUrl(state, branch)} target="_blank" rel="noreferrer" style={{ color: "#315f9e", fontSize: 12, fontWeight: 850, whiteSpace: "nowrap", textDecoration: "none" }}>
+            Open state guide
+          </a>
+        </div>
+
         <div className="nonVaLaneGrid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
-          {nonVaBenefitLanes.map((lane) => (
+          {selectedStateLanes.map((lane) => (
             <div key={lane.area} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start", marginBottom: 6 }}>
                 <strong style={{ fontSize: 14 }}>{lane.area}</strong>
@@ -644,6 +803,26 @@ export function NonVaBenefits({ profile }: { profile: Profile }) {
           <p style={{ margin: "3px 0 0", color: "#667184", fontSize: 12, lineHeight: 1.45 }}>
             A yearly reminder engine that checks official agency pages and verified merchant pages before Memorial Day, Military Appreciation Month, Veterans Day, birthdays, travel dates, vehicle purchases, and home purchases.
           </p>
+        </div>
+      </Card>
+
+      <Card title="Value Readiness Legend" sub="A shared vocabulary for every state, branch, family role, and benefit type.">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }} className="nonVaStatsGrid">
+          {[
+            { label: "Ready", text: "Likely actionable with current proof." },
+            { label: "Check", text: "Needs agency/county confirmation." },
+            { label: "Investigate", text: "Potentially valuable but evidence or rules are unclear." },
+            { label: "Seasonal", text: "Date-window offer; verify before travel/holiday." },
+            { label: "Local", text: "County, city, nonprofit, or office-specific." },
+            { label: "Federal", text: "Nationwide baseline, not state-specific." },
+            { label: "Branch", text: "Branch/component/family-role source lane." },
+            { label: "Start Here", text: "Best first official guide for this state." },
+          ].map((item) => (
+            <div key={item.label} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 10 }}>
+              <Pill label={item.label} />
+              <p style={{ margin: "7px 0 0", color: "#667184", fontSize: 12, lineHeight: 1.4 }}>{item.text}</p>
+            </div>
+          ))}
         </div>
       </Card>
     </div>

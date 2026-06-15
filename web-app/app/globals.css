@@ -854,6 +854,7 @@ button {
 }
 
 .facts input,
+.facts select,
 .noteForm select,
 .noteForm textarea {
   width: 100%;
