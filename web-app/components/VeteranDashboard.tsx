@@ -671,6 +671,14 @@ type VaDecoderAnalysis = {
   formDrafts: DecodedFormDraft[];
 };
 
+type ImportAuditItem = {
+  id: string;
+  fileName: string;
+  status: "recognized" | "unsupported" | "error";
+  label: string;
+  detail: string;
+};
+
 const diagnosticCodeDescriptions: Record<string, string> = {
   "6260": "Tinnitus",
   "6847": "Sleep apnea syndromes",
@@ -1001,6 +1009,54 @@ function parseJsonBlocks(text: string) {
   }
 }
 
+function auditImportedJson(fileName: string, analysis: VaDecoderAnalysis): ImportAuditItem {
+  const recognized = analysis.conditions.length || analysis.denials.length || analysis.activeClaims.length || analysis.formDrafts.length || analysis.combinedRating !== null;
+  const lower = fileName.toLowerCase();
+  if (analysis.conditions.length || analysis.denials.length) {
+    return {
+      id: `${fileName}-${Date.now()}-rated`,
+      fileName,
+      status: "recognized",
+      label: lower.includes("rated") ? "Rated disabilities imported" : "VA disability data imported",
+      detail: `${analysis.conditions.length} service-connected conditions and ${analysis.denials.length} prior denials found`,
+    };
+  }
+  if (analysis.activeClaims.length) {
+    return {
+      id: `${fileName}-${Date.now()}-claims`,
+      fileName,
+      status: "recognized",
+      label: lower.includes("claim") ? "Claims imported" : "VA claim data imported",
+      detail: `${analysis.activeClaims.length} active claim${analysis.activeClaims.length === 1 ? "" : "s"} found`,
+    };
+  }
+  if (analysis.formDrafts.length) {
+    return {
+      id: `${fileName}-${Date.now()}-profile`,
+      fileName,
+      status: "recognized",
+      label: lower.includes("profile") ? "Profile imported" : "VA profile data imported",
+      detail: `${analysis.formDrafts.length} saved form draft${analysis.formDrafts.length === 1 ? "" : "s"} found; profile PII ignored`,
+    };
+  }
+  if (recognized) {
+    return {
+      id: `${fileName}-${Date.now()}-summary`,
+      fileName,
+      status: "recognized",
+      label: "VA summary imported",
+      detail: "Combined rating found",
+    };
+  }
+  return {
+    id: `${fileName}-${Date.now()}-unsupported`,
+    fileName,
+    status: "unsupported",
+    label: "Not recognized",
+    detail: "No rated disabilities, active claims, or saved form drafts were found",
+  };
+}
+
 function combineVaRatings(ratings: number[]) {
   const sorted = [...ratings].filter((rating) => rating > 0).sort((a, b) => b - a);
   let raw = 0;
@@ -1039,12 +1095,16 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
   const [conditionFilter, setConditionFilter] = useState<"all" | "high" | "gaps">("all");
   const [evidenceOverrides, setEvidenceOverrides] = useState<Record<string, Record<string, boolean>>>({});
   const [whatChanged, setWhatChanged] = useState<Record<string, string>>({});
+  const [importAudit, setImportAudit] = useState<ImportAuditItem[]>([]);
 
   function analyzeText(text: string) {
     setParseError("");
     try {
-      const result = parseJsonBlocks(text).reduce((analysis, block) => mergeAnalyses(analysis, decodeVaJson(block)), blankVaAnalysis());
+      const blocks = parseJsonBlocks(text);
+      const analyses = blocks.map((block) => decodeVaJson(block));
+      const result = analyses.reduce((analysis, block) => mergeAnalyses(analysis, block), blankVaAnalysis());
       setDecoded((previous) => mergeAnalyses(previous || blankVaAnalysis(), result));
+      setImportAudit((previous) => [...previous, ...analyses.map((analysis, index) => auditImportedJson(`Pasted JSON block ${index + 1}`, analysis))]);
       setRawJson(text);
     } catch {
       setParseError("Could not parse JSON. Check that the data begins with { or [ and contains valid JSON syntax.");
@@ -1061,8 +1121,10 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
           const text = String(reader.result || "");
           const result = decodeVaJson(JSON.parse(text));
           setDecoded((previous) => mergeAnalyses(previous || blankVaAnalysis(), result));
+          setImportAudit((previous) => [...previous, auditImportedJson(file.name, result)]);
           setRawJson((previous) => previous ? `${previous}\n\n${text}` : text);
         } catch {
+          setImportAudit((previous) => [...previous, { id: `${file.name}-${Date.now()}-error`, fileName: file.name, status: "error", label: "Could not parse", detail: "This file is not valid JSON or could not be read" }]);
           setParseError(`Could not parse ${file.name}. Check that it is a valid JSON file.`);
         }
       };
@@ -1076,6 +1138,7 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
     setParseError("");
     setEvidenceOverrides({});
     setWhatChanged({});
+    setImportAudit([]);
   }
 
   function exportAnalysis() {
@@ -1085,6 +1148,49 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
     const link = document.createElement("a");
     link.href = url;
     link.download = "va-data-decoder-analysis.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportVeteranSnapshot() {
+    const lines = [
+      "Veteran Journey Navigator - VA Decoder Snapshot",
+      `Generated: ${new Date().toLocaleString()}`,
+      "",
+      vaDataDecoderDisclaimer,
+      "",
+      "CURRENT STATUS",
+      `Combined rating: ${displayedCombined !== null ? `${displayedCombined}%` : "Not found"}`,
+      `Service-connected conditions: ${conditions.length}`,
+      `Static conditions: ${staticConditions.length}`,
+      `Prior denials: ${denials.length}`,
+      `Active claims: ${activeClaims.length}`,
+      "",
+      "SERVICE-CONNECTED CONDITIONS",
+      ...(conditions.length ? conditions.map((condition) => `- ${condition.condition}: ${condition.rating !== null ? `${condition.rating}%` : "N/A"}, effective ${condition.effectiveDate}, static: ${condition.staticIndicator}, code ${condition.diagnosticCode}`) : ["- Not imported"]),
+      "",
+      "STATIC CONDITIONS",
+      ...(staticConditions.length ? staticConditions.map((condition) => `- ${condition.condition}`) : ["- None decoded"]),
+      "",
+      "PRIOR DENIALS",
+      ...(denials.length ? denials.map((denial) => `- ${denial.condition}: ${denial.category}, code ${denial.diagnosticCode}, ${denial.reviewLevel}`) : ["- None decoded"]),
+      "",
+      "ACTIVE CLAIMS",
+      ...(activeClaims.length ? activeClaims.map((claim) => `- Claim ${claim.id}: ${claim.phase}, filed ${claim.filed}`) : ["- None decoded"]),
+      "",
+      "DISCUSSION TOPICS FOR VSO",
+      ...(opportunityTopics.length ? opportunityTopics.map((topic) => `- ${topic}`) : ["- Import VA data to generate discussion topics"]),
+      "",
+      "WHAT CHANGED",
+      ...(Object.entries(whatChanged).filter(([, value]) => value.trim()).length
+        ? Object.entries(whatChanged).filter(([, value]) => value.trim()).map(([id, value]) => `- ${conditions.find((condition) => condition.id === id)?.condition || "Condition"}: ${value}`)
+        : ["- No changes entered yet"]),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "va-decoder-veteran-snapshot.txt";
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -1134,6 +1240,17 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
   });
   const representativeReviewDenials = denials.filter((denial) => denial.reviewLevel === "Representative review");
   const otherDenials = denials.filter((denial) => denial.reviewLevel !== "Representative review");
+  const staticConditions = conditions.filter((condition) => condition.staticIndicator === "Yes");
+  const nonStaticConditions = conditions.filter((condition) => condition.staticIndicator === "No");
+  const lastImported = importAudit.length ? new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }) : "Not imported yet";
+  const opportunityTypeRows = [
+    { type: "Increase Review", count: conditions.length, detail: "Service-connected conditions that can be organized for severity and evidence review." },
+    { type: "Prior Denial", count: denials.length, detail: "Previously denied conditions; keep separate from new opportunity rooms." },
+    { type: "Pending Claim", count: activeClaims.length, detail: "Open VA claims found in the imported claims data." },
+    { type: "Saved Form / Draft", count: formDrafts.length, detail: "VA forms started in the imported profile data." },
+    { type: "New Claim", count: 0, detail: "Not inferred from VA JSON. Requires accredited review and veteran intent." },
+    { type: "Appeal / Supplemental / HLR", count: 0, detail: "Not decoded yet. Future imports can add appeals and review lanes." },
+  ];
   const opportunityTopics = [
     conditions.some((condition) => /tinnitus/i.test(condition.condition)) ? "Headache, migraine, vertigo, or balance symptoms as discussion topics related to tinnitus evidence" : "",
     conditions.some((condition) => /depression|ptsd|anxiety|mental/i.test(condition.condition)) ? "Mental health evaluation accuracy, occupational impairment, social impairment, and current treatment evidence" : "",
@@ -1201,6 +1318,77 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
             </div>
           ))}
         </div>
+      </Card>
+
+      <Card title="Import Audit Panel" sub="Confidence check for each VA JSON source loaded in this browser session." badge={`${importAudit.length} imports`}>
+        {importAudit.length ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }} className="nonVaLaneGrid">
+            {importAudit.map((item) => (
+              <div key={item.id} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: "10px 12px", background: item.status === "recognized" ? "#f9fbf7" : item.status === "error" ? "#f8e2df" : "#fbefd0" }}>
+                <strong style={{ display: "flex", gap: 6, alignItems: "center", color: item.status === "recognized" ? "#267a56" : item.status === "error" ? "#b6504c" : "#8a6319", fontSize: 12 }}>
+                  <span>{item.status === "recognized" ? "✓" : item.status === "error" ? "✗" : "!"}</span>
+                  {item.fileName}
+                </strong>
+                <p style={{ margin: "5px 0 0", color: "#172132", fontSize: 12, fontWeight: 800 }}>{item.label}</p>
+                <p style={{ margin: "2px 0 0", color: "#667184", fontSize: 11, lineHeight: 1.4 }}>{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={{ margin: 0, color: "#667184", fontSize: 12 }}>Upload or paste VA JSON to see which source files were recognized and what each one contributed.</p>
+        )}
+      </Card>
+
+      <Card title="VA Data Health Check" sub="What the imported VA data says right now. Educational preparation only." badge="Status snapshot">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 8, marginBottom: 12 }} className="nonVaStatsGrid">
+          {[
+            { label: "Service Connected", value: String(conditions.length) },
+            { label: "Prior Denials", value: String(denials.length) },
+            { label: "Pending Claims", value: String(activeClaims.length) },
+            { label: "Static Conditions", value: String(staticConditions.length) },
+            { label: "Last Imported", value: lastImported },
+          ].map((item) => (
+            <div key={item.label} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
+              <span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>{item.label}</span>
+              <div style={{ fontSize: item.label === "Last Imported" ? 13 : 24, fontWeight: 950, lineHeight: 1.15, marginTop: 4 }}>{item.value}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }} className="nonVaLaneGrid">
+          {opportunityTypeRows.map((row) => (
+            <div key={row.type} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: "9px 11px", background: "#fff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <strong style={{ fontSize: 12 }}>{row.type}</strong>
+                <Pill label={String(row.count)} />
+              </div>
+              <p style={{ margin: "4px 0 0", color: "#667184", fontSize: 11, lineHeight: 1.4 }}>{row.detail}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card title="Static Condition Analyzer" sub="Static indicators decoded from veteran-provided VA data. This is not protection or reduction advice." badge={`${staticConditions.length} static`}>
+        {conditions.length ? (
+          <>
+            <div style={{ padding: "10px 12px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0", marginBottom: 10 }}>
+              <strong style={{ color: "#8a6319", fontSize: 12 }}>{nonStaticConditions.length ? "Some conditions are not marked static" : "All decoded service-connected conditions appear static"}</strong>
+              <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12 }}>Static in VA data does not automatically mean legally protected. Ask an accredited representative about 5-year, 10-year, 20-year, P&T, and reduction-protection rules.</p>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 7 }} className="nonVaLaneGrid">
+              {conditions.map((condition) => (
+                <div key={`${condition.id}-static`} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: "9px 11px", background: "#fff" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <strong style={{ fontSize: 12 }}>{condition.condition}</strong>
+                    <Pill label={condition.staticIndicator === "Yes" ? "Static" : condition.staticIndicator === "No" ? "Not static" : "Unknown"} />
+                  </div>
+                  <p style={{ margin: "3px 0 0", color: "#667184", fontSize: 11 }}>{condition.rating !== null ? `${condition.rating}%` : "Rating not shown"} - Effective {condition.effectiveDate}</p>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p style={{ margin: 0, color: "#667184", fontSize: 12 }}>Upload rated disabilities JSON to decode static indicators.</p>
+        )}
       </Card>
 
       {(activeClaims.length || formDrafts.length) ? (
@@ -1411,7 +1599,10 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginBottom: 10 }} className="nonVaLaneGrid">
           {packetSections.map((section) => <div key={section.title} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}><strong style={{ display: "block", fontSize: 13, marginBottom: 6 }}>{section.title}</strong>{(section.lines.length ? section.lines : ["Not enough decoded data yet"]).map((line) => <p key={line} style={{ margin: "4px 0 0", color: "#667184", fontSize: 12 }}>{line}</p>)}</div>)}
         </div>
-        <button type="button" onClick={() => window.print()} style={{ width: "100%", minHeight: 38, border: "1px solid #d9dfd5", borderRadius: 8, background: "#fff", color: "#172132", fontWeight: 850, cursor: "pointer" }}>Print / save decoder packet as PDF</button>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }} className="nonVaLaneGrid">
+          <button type="button" onClick={exportVeteranSnapshot} disabled={!decoded} style={{ width: "100%", minHeight: 38, border: "1px solid #267a56", borderRadius: 8, background: decoded ? "#dff3e7" : "#f4f6f3", color: decoded ? "#267a56" : "#667184", fontWeight: 850, cursor: decoded ? "pointer" : "not-allowed" }}>Generate Veteran Snapshot</button>
+          <button type="button" onClick={() => window.print()} style={{ width: "100%", minHeight: 38, border: "1px solid #d9dfd5", borderRadius: 8, background: "#fff", color: "#172132", fontWeight: 850, cursor: "pointer" }}>Print / save decoder packet as PDF</button>
+        </div>
       </Card>
     </div>
   );
