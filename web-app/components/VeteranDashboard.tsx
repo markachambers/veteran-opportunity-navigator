@@ -346,6 +346,60 @@ const conditionMatrix = [
   { condition: "Aortic residuals", va: "Unknown", ssdi: "Unknown", rating: "N/A", lastExam: "Recent", worsening: "Investigate", ready: "Red" },
 ];
 
+const secondaryConditions = [
+  {
+    condition: "Tinnitus",
+    rating: "10%",
+    pathways: [
+      { topic: "Headaches / migraines", needs: ["Diagnosis", "Treatment records", "Symptom log", "Medical opinion"], questions: ["Should headaches be reviewed as a possible secondary discussion topic?", "Would a headache log or neurology visit help clarify the record?"] },
+      { topic: "Vertigo / balance symptoms", needs: ["Diagnosis", "ENT or neurology records", "Symptom documentation", "Medication or treatment notes"], questions: ["Has vertigo or balance disturbance been fully developed in the record?", "Are ENT or vestibular records needed before any representative review?"] },
+      { topic: "Sleep disturbance", needs: ["Sleep notes", "Treatment records", "Symptom documentation", "Functional impact statement"], questions: ["Is sleep disturbance already accounted for elsewhere?", "Would updated sleep or mental health records clarify the picture?"] },
+    ],
+  },
+  {
+    condition: "Depression",
+    rating: "30%",
+    pathways: [
+      { topic: "Occupational impairment review", needs: ["Mental health notes", "Medication history", "Work-impact statement", "Therapy records"], questions: ["Does the current evidence accurately describe occupational impairment?", "Are updated treatment records needed?"] },
+      { topic: "Social impairment review", needs: ["Therapy records", "Personal statement", "Buddy statement", "Medication history"], questions: ["Does the record capture social impairment and daily-function limits?", "Would a personal statement help organize the timeline?"] },
+      { topic: "Chronic pain and sleep impact", needs: ["Pain records", "Sleep documentation", "Mental health notes", "Functional impact statement"], questions: ["Should chronic pain or sleep disruption be discussed as part of the mental health evidence picture?", "Are symptoms already captured under another condition?"] },
+    ],
+  },
+  {
+    condition: "Lumbar DDD",
+    rating: "20%",
+    pathways: [
+      { topic: "Radiculopathy progression", needs: ["Neurology exam", "Imaging", "Pain treatment records", "Functional loss statement"], questions: ["Are neurological symptoms fully captured?", "Are current records sufficient to describe progression?"] },
+      { topic: "Additional nerve involvement", needs: ["Nerve study", "Specialist visit", "Laterality documentation", "Symptom frequency"], questions: ["Is there evidence of additional nerve involvement or changed laterality?", "Would a current neurological exam clarify symptoms?"] },
+      { topic: "Mobility and functional loss", needs: ["Range of motion exam", "Physical therapy records", "Assistive device notes", "Flare-up statement"], questions: ["Does the record describe flare-ups, walking, sitting, lifting, and standing limits?", "Is a functional impact statement missing?"] },
+    ],
+  },
+  {
+    condition: "Cervical arthritis",
+    rating: "20%",
+    pathways: [
+      { topic: "Upper extremity nerve symptoms", needs: ["Neurology records", "Imaging", "Treatment notes", "Symptom description"], questions: ["Are arm, hand, numbness, or weakness symptoms documented?", "Would specialist notes help separate cervical and lumbar symptoms?"] },
+      { topic: "Headache or neck-related symptoms", needs: ["Diagnosis", "Treatment records", "Symptom log", "Medical opinion"], questions: ["Should headache patterns be discussed with the representative?", "Is there enough documentation to understand frequency and impact?"] },
+    ],
+  },
+  {
+    condition: "Bilateral radiculopathy",
+    rating: "20% each side",
+    pathways: [
+      { topic: "Symptom progression", needs: ["Neurology exam", "Medication references", "Pain records", "Functional impact statement"], questions: ["Are current symptoms worse, more frequent, or affecting mobility?", "Are both sides accurately documented?"] },
+      { topic: "Falls, weakness, or mobility limits", needs: ["Fall history", "Assistive device notes", "Physical therapy records", "Provider documentation"], questions: ["Are weakness, falls, balance, or assistive devices documented?", "Should mobility limitations be organized before a VSO meeting?"] },
+    ],
+  },
+  {
+    condition: "Sleep apnea",
+    rating: "50%",
+    pathways: [
+      { topic: "Fatigue / cognitive symptoms", needs: ["Sleep treatment records", "CPAP records", "Symptom statement", "Medication history"], questions: ["Are fatigue and concentration symptoms documented separately from other conditions?", "Are CPAP compliance or sleep clinic records available?"] },
+      { topic: "Mental health and sleep interaction", needs: ["Mental health notes", "Sleep records", "Medication history", "Functional impact statement"], questions: ["Do sleep and mental health records tell the same story?", "Would updated treatment notes clarify symptom overlap?"] },
+    ],
+  },
+];
+
 const journeyItems = [
   { date: "Aug 1985 - May 1988", title: "Air Force service", status: "Verified", text: "VA service verification confirms honorable Air Force service for this period." },
   { date: "Apr 1, 2026", title: "Current award status", status: "Verified", text: "Benefit summary shows 90% combined service-connected evaluation, monthly award, and not P&T." },
@@ -379,9 +433,9 @@ const vaultDocuments = [
 
 function statusColor(s: string) {
   const map: Record<string, string> = {
-    Complete: "#267a56", Verified: "#267a56", Active: "#267a56", Confirmed: "#267a56", Authorized: "#267a56",
+    Complete: "#267a56", Verified: "#267a56", Active: "#267a56", Confirmed: "#267a56", Authorized: "#267a56", Found: "#267a56", Green: "#267a56",
     Missing: "#b6504c", Red: "#b6504c", Insufficient: "#b6504c",
-    Unconfirmed: "#b98922", Yellow: "#b98922", Medium: "#b98922", Investigate: "#b98922", High: "#b98922",
+    Unconfirmed: "#b98922", Yellow: "#b98922", Medium: "#b98922", Investigate: "#b98922", High: "#b98922", Partial: "#b98922",
     Mapped: "#3b82f6", Open: "#667184",
   };
   return map[s] || "#667184";
@@ -457,6 +511,184 @@ function dedupeDocuments(documents: Doc[]) {
       count: sorted.length,
     };
   });
+}
+
+const educationDisclaimer = "Educational use only. Review all potential claims with an accredited VSO, attorney, or VA-accredited representative.";
+
+function evidenceStatus(need: string, documents: Doc[]) {
+  const haystack = documents.map((doc) => `${doc.file_name} ${doc.category} ${doc.status}`.toLowerCase()).join(" ");
+  const normalized = need.toLowerCase();
+
+  const keywordGroups: Record<string, string[]> = {
+    Diagnosis: ["diagnosis", "rating", "decision", "fmp", "benefit"],
+    "Treatment records": ["treatment", "medical", "medication", "record", "vAMC".toLowerCase(), "surgery"],
+    "Symptom log": ["statement", "personal", "symptom", "headache", "migraine"],
+    "Medical opinion": ["nexus", "opinion", "dbq", "provider"],
+    "ENT or neurology records": ["ent", "neuro", "neurology", "vertigo", "balance"],
+    "Symptom documentation": ["statement", "symptom", "personal", "buddy"],
+    "Medication or treatment notes": ["medication", "treatment", "vAMC".toLowerCase()],
+    "Sleep notes": ["sleep", "cpap", "apnea"],
+    "Functional impact statement": ["functional", "impact", "statement", "personal"],
+    "Mental health notes": ["mental", "depression", "therapy", "psych"],
+    "Medication history": ["medication", "list", "pharmacy"],
+    "Work-impact statement": ["employment", "work", "ssdi", "statement"],
+    "Therapy records": ["therapy", "mental", "counsel"],
+    "Personal statement": ["personal", "statement"],
+    "Buddy statement": ["buddy", "statement"],
+    "Pain records": ["pain", "lumbar", "radiculopathy", "spine"],
+    "Sleep documentation": ["sleep", "cpap", "apnea"],
+    "Neurology exam": ["neuro", "neurology", "radiculopathy", "nerve"],
+    Imaging: ["mri", "xray", "x-ray", "ct", "imaging"],
+    "Pain treatment records": ["pain", "treatment", "medication"],
+    "Functional loss statement": ["functional", "loss", "statement"],
+    "Nerve study": ["emg", "nerve", "neurology"],
+    "Specialist visit": ["specialist", "neuro", "orthopedic", "ent"],
+    "Laterality documentation": ["left", "right", "bilateral", "radiculopathy"],
+    "Symptom frequency": ["frequency", "flare", "symptom", "statement"],
+    "Range of motion exam": ["range", "motion", "rom", "exam"],
+    "Physical therapy records": ["physical therapy", "pt", "therapy"],
+    "Assistive device notes": ["cane", "walker", "brace", "assistive"],
+    "Flare-up statement": ["flare", "statement"],
+    "Symptom description": ["symptom", "statement"],
+    "Fall history": ["fall", "falls", "balance"],
+    "Provider documentation": ["provider", "doctor", "treatment"],
+    "Sleep treatment records": ["sleep", "cpap", "apnea"],
+    "CPAP records": ["cpap", "sleep"],
+    "Symptom statement": ["symptom", "statement"],
+    "Sleep records": ["sleep", "cpap", "apnea"],
+  };
+
+  const keywords = keywordGroups[need] || normalized.split(" ");
+  const matches = keywords.filter((keyword) => haystack.includes(keyword.toLowerCase())).length;
+  if (matches >= 2) return "Found";
+  if (matches === 1) return "Partial";
+  return "Missing";
+}
+
+function readinessForPathway(needs: string[], documents: Doc[]) {
+  const statuses = needs.map((need) => evidenceStatus(need, documents));
+  const score = Math.round(statuses.reduce((sum, status) => {
+    if (status === "Found") return sum + 25;
+    if (status === "Partial") return sum + 12;
+    return sum;
+  }, 0));
+  return { statuses, score: Math.min(100, score) };
+}
+
+export function SecondaryOpportunityExplorer({ documents = [] }: { documents?: Doc[] }) {
+  const discussionTopics = secondaryConditions.flatMap((condition) =>
+    condition.pathways.map((pathway) => {
+      const readiness = readinessForPathway(pathway.needs, documents);
+      return {
+        condition: condition.condition,
+        rating: condition.rating,
+        topic: pathway.topic,
+        score: readiness.score,
+        questions: pathway.questions,
+        needs: pathway.needs,
+        statuses: readiness.statuses,
+      };
+    })
+  ).sort((a, b) => b.score - a.score);
+
+  const topTopics = discussionTopics.slice(0, 4);
+  const availableDocs = documents.slice(0, 6).map((doc) => documentLabel(doc.category));
+  const missingDocs = Array.from(new Set(discussionTopics.flatMap((topic) => topic.needs.filter((need, index) => topic.statuses[index] === "Missing")))).slice(0, 7);
+
+  function printBrief() {
+    window.print();
+  }
+
+  return (
+    <div style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", color: "#172132" }}>
+      <Card title="Secondary Condition Opportunity Explorer" sub="Educational preparation for VSO, attorney, or VA-accredited representative conversations." badge="No claim prediction">
+        <div style={{ padding: "10px 12px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0", marginBottom: 12 }}>
+          <strong style={{ display: "block", color: "#8a6319", fontSize: 12 }}>Educational use only</strong>
+          <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12, lineHeight: 1.45 }}>{educationDisclaimer}</p>
+          <p style={{ margin: "4px 0 0", color: "#8a6319", fontSize: 11 }}>Readiness scores mean “amount of supporting documentation found,” not chance of approval.</p>
+        </div>
+
+        <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Potential Discussion Topics</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, marginBottom: 12 }} className="nonVaLaneGrid">
+          {topTopics.map((topic, index) => (
+            <div key={`${topic.condition}-${topic.topic}`} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+              <span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>Topic {index + 1}</span>
+              <strong style={{ display: "block", fontSize: 14, marginTop: 3 }}>{topic.topic}</strong>
+              <p style={{ margin: "2px 0 8px", color: "#667184", fontSize: 12 }}>{topic.condition} · Current rating: {topic.rating}</p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <span style={{ color: "#667184", fontSize: 11 }}>Evidence readiness</span>
+                <strong style={{ color: readinessTone(topic.score), fontSize: 20 }}>{topic.score}</strong>
+              </div>
+              <div style={{ height: 6, borderRadius: 3, background: "#f4f6f3", overflow: "hidden", marginTop: 5 }}>
+                <div style={{ width: `${topic.score}%`, height: "100%", background: readinessTone(topic.score) }} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <h3 style={{ margin: "12px 0 8px", fontSize: 14 }}>Service-Connected Condition Analyzer</h3>
+        {secondaryConditions.map((condition) => (
+          <div key={condition.condition} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, marginBottom: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start", marginBottom: 8 }}>
+              <div>
+                <strong style={{ display: "block", fontSize: 15 }}>{condition.condition}</strong>
+                <span style={{ color: "#667184", fontSize: 12 }}>Current rating: {condition.rating}</span>
+              </div>
+              <Pill label="Review areas" />
+            </div>
+            {condition.pathways.map((pathway) => {
+              const readiness = readinessForPathway(pathway.needs, documents);
+              return (
+                <div key={pathway.topic} style={{ padding: "10px 0", borderTop: "1px solid #edf0ea" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                    <strong style={{ fontSize: 13 }}>{pathway.topic}</strong>
+                    <span style={{ color: readinessTone(readiness.score), fontSize: 13, fontWeight: 900 }}>{readiness.score}/100</span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6, marginTop: 7 }} className="nonVaStatsGrid">
+                    {pathway.needs.map((need, index) => (
+                      <div key={need} style={{ border: "1px solid #edf0ea", borderRadius: 7, padding: 8, background: "#f9fbf7" }}>
+                        <span style={{ display: "block", fontSize: 11, color: "#172132", fontWeight: 750 }}>{need}</span>
+                        <Pill label={readiness.statuses[index]} />
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 7 }}>
+                    <span style={{ color: "#267a56", fontSize: 10, fontWeight: 850, textTransform: "uppercase" as const }}>Questions for your VSO</span>
+                    <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+                      {pathway.questions.map((question) => (
+                        <li key={question} style={{ color: "#667184", fontSize: 12, marginBottom: 3 }}>{question}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </Card>
+
+      <Card title="VSO Preparation Brief" sub="Portable discussion packet. This is not legal, medical, or claims advice." badge="Export-ready">
+        <p style={{ margin: "0 0 10px", color: "#8a6319", fontSize: 12 }}>{educationDisclaimer}</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginBottom: 12 }} className="nonVaLaneGrid">
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 10 }}>
+            <strong style={{ fontSize: 13 }}>Topics to discuss</strong>
+            {topTopics.map((topic) => <p key={topic.topic} style={{ margin: "5px 0 0", fontSize: 12, color: "#667184" }}>{topic.topic}</p>)}
+          </div>
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 10 }}>
+            <strong style={{ fontSize: 13 }}>Documents available</strong>
+            {(availableDocs.length ? availableDocs : ["No uploaded evidence detected yet"]).map((doc) => <p key={doc} style={{ margin: "5px 0 0", fontSize: 12, color: "#667184" }}>{doc}</p>)}
+          </div>
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 10 }}>
+            <strong style={{ fontSize: 13 }}>Documents missing</strong>
+            {missingDocs.map((doc) => <p key={doc} style={{ margin: "5px 0 0", fontSize: 12, color: "#667184" }}>{doc}</p>)}
+          </div>
+        </div>
+        <button onClick={printBrief} type="button" style={{ width: "100%", minHeight: 40, borderRadius: 8, border: "1px solid #d9dfd5", background: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 13, color: "#172132" }}>
+          Print / save as PDF
+        </button>
+      </Card>
+    </div>
+  );
 }
 
 export function VeteranDashboard({ profile, userEmail, documents = [] }: { profile: Profile; userEmail: string; documents?: Doc[] }) {
