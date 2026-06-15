@@ -427,6 +427,45 @@ const ssdiApplicationPhases = [
   },
 ];
 
+const tdiuEvidenceAreas = [
+  {
+    area: "Current rating picture",
+    need: "Latest rating decision with individual ratings and effective dates",
+    keywords: /rating|decision|codesheet|code sheet|benefit_summary|benefit summary/i,
+    why: "A representative needs the individual ratings, not just the combined rating, to review schedular TDIU thresholds and strategy.",
+  },
+  {
+    area: "Employment history",
+    need: "Work timeline, last worked date, job duties, earnings, and attempts to work",
+    keywords: /employment|work|job|wage|earnings|resume|timeline/i,
+    why: "TDIU review depends heavily on whether service-connected conditions prevent substantially gainful employment.",
+  },
+  {
+    area: "SSDI / SSA context",
+    need: "SSDI award letter, BPQY, or SSA medical basis documentation",
+    keywords: /ssdi|ssa|bpqy|social security|award/i,
+    why: "SSA evidence can help organize functional limitations, while VA and SSA remain separate systems with different rules.",
+  },
+  {
+    area: "Functional impact",
+    need: "Personal statement, provider notes, or vocational evidence explaining work limitations",
+    keywords: /functional|impact|statement|limitations|unable|employ|vocational/i,
+    why: "The strongest conversations are about specific limits: sitting, standing, lifting, concentration, reliability, attendance, and pain flares.",
+  },
+  {
+    area: "Medical evidence",
+    need: "Recent treatment notes, exams, medications, therapy, imaging, or specialist records",
+    keywords: /medical|treatment|exam|medication|therapy|mri|imaging|neurology|mental|sleep|cpap/i,
+    why: "Current records help connect functional limits to service-connected conditions rather than non-service-connected factors.",
+  },
+  {
+    area: "VA forms to ask about",
+    need: "VA Form 21-8940 and employer Form 21-4192 discussion with a representative",
+    keywords: /21-8940|8940|21-4192|4192|tdiu|unemployability/i,
+    why: "These forms are commonly part of TDIU development, but the app should not tell a veteran to file them without accredited review.",
+  },
+];
+
 const journeyItems = [
   { date: "Aug 1985 - May 1988", title: "Air Force service", status: "Verified", text: "VA service verification confirms honorable Air Force service for this period." },
   { date: "Apr 1, 2026", title: "Current award status", status: "Verified", text: "Benefit summary shows 90% combined service-connected evaluation, monthly award, and not P&T." },
@@ -674,6 +713,93 @@ export function RatingGapAnalyzer({ profile }: { profile: Profile }) {
           <p style={{ margin: "3px 0 0", color: "#667184", fontSize: 12 }}>
             Add the veteran's individual rating breakdown and bilateral-factor details from the latest rating decision. Until then, this is a planning aid, not a definitive VA math calculation.
           </p>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+export function TDIUReadinessExplorer({ profile, documents = [] }: { profile: Profile; documents?: Doc[] }) {
+  const rating = ratingDisplay(profile?.current_rating);
+  const workStatus = profile?.work_status || "Not entered";
+  const ssdiLikely = /ssdi|ssa|social security/i.test(workStatus) || documents.some((doc) => /ssdi|ssa|bpqy|social security/i.test(`${doc.category} ${doc.file_name}`));
+  const unemployedLikely = /unemployed|unable|not working|retired|ssdi/i.test(workStatus);
+  const statusSignals = [
+    { label: "Combined rating", value: rating, tone: rating === "Add rating" ? "Missing" : "Found" },
+    { label: "Work status", value: workStatus, tone: workStatus === "Not entered" ? "Missing" : unemployedLikely ? "Found" : "Partial" },
+    { label: "SSDI context", value: ssdiLikely ? "Present" : "Not found", tone: ssdiLikely ? "Found" : "Missing" },
+  ];
+  const evidenceRows = tdiuEvidenceAreas.map((item) => {
+    const found = documents.some((doc) => item.keywords.test(`${doc.category} ${doc.file_name}`));
+    return { ...item, status: found ? "Found" : "Missing" };
+  });
+  const foundCount = evidenceRows.filter((row) => row.status === "Found").length;
+  const readinessLabel = foundCount >= 4 ? "Strong prep file" : foundCount >= 2 ? "Partial prep file" : "Needs evidence";
+  const representativeQuestions = [
+    "Do my service-connected conditions meet a threshold that should be reviewed for TDIU conversation purposes?",
+    "Which conditions appear to drive work limitations, and are those conditions service connected?",
+    "What employment history, earnings records, or employer forms would you want before advising me?",
+    "How should SSDI evidence be separated from VA evidence so the record stays accurate?",
+    "Would a vocational assessment, provider statement, or functional impact statement help clarify the record?",
+  ];
+
+  return (
+    <div style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", color: "#172132" }}>
+      <Card title="TDIU Readiness Explorer" sub="Educational preparation for Total Disability Based on Individual Unemployability conversations." badge="VSO review">
+        <div style={{ padding: "10px 12px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0", marginBottom: 12 }}>
+          <strong style={{ display: "block", color: "#8a6319", fontSize: 12 }}>Preparation only</strong>
+          <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12, lineHeight: 1.45 }}>
+            Educational use only. This does not determine TDIU eligibility, predict approval, recommend filing, or replace an accredited VSO, attorney, or VA-accredited representative.
+          </p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, marginBottom: 12 }} className="nonVaLaneGrid">
+          {statusSignals.map((signal) => (
+            <div key={signal.label} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
+              <span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>{signal.label}</span>
+              <div style={{ fontSize: 18, fontWeight: 950, lineHeight: 1.2, marginTop: 4 }}>{signal.value}</div>
+              <div style={{ marginTop: 6 }}><Pill label={signal.tone} /></div>
+            </div>
+          ))}
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
+            <span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>TDIU prep readiness</span>
+            <div style={{ fontSize: 18, fontWeight: 950, lineHeight: 1.2, marginTop: 4 }}>{readinessLabel}</div>
+            <div style={{ marginTop: 6 }}><Pill label={readinessLabel === "Needs evidence" ? "Missing" : readinessLabel === "Partial prep file" ? "Partial" : "Found"} /></div>
+          </div>
+        </div>
+
+        <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Evidence Readiness</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, marginBottom: 12 }} className="nonVaLaneGrid">
+          {evidenceRows.map((row) => (
+            <div key={row.area} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
+                <strong style={{ fontSize: 13 }}>{row.area}</strong>
+                <Pill label={row.status} />
+              </div>
+              <p style={{ margin: "6px 0 0", color: "#172132", fontSize: 12, fontWeight: 700 }}>{row.need}</p>
+              <p style={{ margin: "3px 0 0", color: "#667184", fontSize: 11, lineHeight: 1.4 }}>{row.why}</p>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }} className="nonVaLaneGrid">
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+            <strong style={{ fontSize: 13 }}>Questions for Your Representative</strong>
+            {representativeQuestions.map((question) => (
+              <p key={question} style={{ margin: "6px 0 0", color: "#667184", fontSize: 12 }}>{question}</p>
+            ))}
+          </div>
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+            <strong style={{ fontSize: 13 }}>What this module should not do</strong>
+            {[
+              "It should not say you are eligible or ineligible.",
+              "It should not choose TDIU over schedular 100% planning.",
+              "It should not merge SSA rules with VA rules.",
+              "It should not recommend filing without accredited review.",
+            ].map((item) => (
+              <p key={item} style={{ margin: "6px 0 0", color: "#667184", fontSize: 12 }}>{item}</p>
+            ))}
+          </div>
         </div>
       </Card>
     </div>

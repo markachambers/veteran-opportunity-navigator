@@ -1,6 +1,6 @@
 import { signOut } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
-import { VeteranDashboard, KnowledgeGraphLab, ClaimReviewCoach, DocumentTranslator, NonVaBenefits, SecondaryOpportunityExplorer, RatingGapAnalyzer, VSOPacketGenerator, SSDIEvidenceMapper } from "@/components/VeteranDashboard";
+import { VeteranDashboard, KnowledgeGraphLab, ClaimReviewCoach, DocumentTranslator, NonVaBenefits, SecondaryOpportunityExplorer, RatingGapAnalyzer, VSOPacketGenerator, SSDIEvidenceMapper, TDIUReadinessExplorer } from "@/components/VeteranDashboard";
 import { AuthButtons } from "@/components/AuthButtons";
 import { ProfileForm } from "@/components/ProfileForm";
 import { DocumentUpload } from "@/components/DocumentUpload";
@@ -97,6 +97,7 @@ export default async function Home() {
             ["NV", "Non-VA Benefits", "#non-va-benefits"],
             ["CP", "Claims Preparation", "#claims-preparation"],
             ["RG", "Rating Gap", "#rating-gap-analyzer"],
+            ["IU", "TDIU Readiness", "#tdiu-readiness-explorer"],
             ["SO", "Secondary Explorer", "#secondary-opportunity-explorer"],
             ["SS", "SSDI Mapper", "#ssdi-evidence-mapper"],
             ["VP", "VSO Packet", "#vso-packet-generator"],
@@ -245,6 +246,9 @@ export default async function Home() {
         </section>
         <section id="rating-gap-analyzer" className="anchorSection">
           <RatingGapAnalyzer profile={profile} />
+        </section>
+        <section id="tdiu-readiness-explorer" className="anchorSection">
+          <TDIUReadinessExplorer profile={profile} documents={documents || []} />
         </section>
         <section id="secondary-opportunity-explorer" className="anchorSection">
           <SecondaryOpportunityExplorer documents={documents || []} />
