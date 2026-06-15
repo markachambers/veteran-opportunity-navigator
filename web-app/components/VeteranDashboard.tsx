@@ -412,63 +412,19 @@ const lifeEvents = [
 ];
 
 const conditionMatrix = [
-  { condition: "Sleep apnea", va: "Yes", ssdi: "Unknown", rating: "?", lastExam: "?", worsening: "Ask", ready: "Yellow" },
-  { condition: "Depression", va: "Yes", ssdi: "Unknown", rating: "?", lastExam: "?", worsening: "Ask", ready: "Yellow" },
-  { condition: "Lumbar spine", va: "Yes", ssdi: "Unknown", rating: "?", lastExam: "?", worsening: "Ask", ready: "Red" },
-  { condition: "Radiculopathy", va: "Yes", ssdi: "Unknown", rating: "?", lastExam: "?", worsening: "Ask", ready: "Red" },
-  { condition: "Aortic residuals", va: "Unknown", ssdi: "Unknown", rating: "N/A", lastExam: "Recent", worsening: "Investigate", ready: "Red" },
+  { condition: "Condition from rating decision", va: "Unknown", ssdi: "Unknown", rating: "?", lastExam: "?", worsening: "Ask", ready: "Missing" },
+  { condition: "Secondary pathway from evidence", va: "Unknown", ssdi: "Unknown", rating: "N/A", lastExam: "?", worsening: "Investigate", ready: "Missing" },
+  { condition: "Residual or complication from records", va: "Unknown", ssdi: "Unknown", rating: "N/A", lastExam: "?", worsening: "Investigate", ready: "Missing" },
 ];
 
 const secondaryConditions = [
   {
-    condition: "Tinnitus",
-    rating: "10%",
+    condition: "Service-connected condition from rating decision",
+    rating: "Enter rating",
     pathways: [
-      { topic: "Headaches / migraines", needs: ["Diagnosis", "Treatment records", "Symptom log", "Medical opinion"], questions: ["Should headaches be reviewed as a possible secondary discussion topic?", "Would a headache log or neurology visit help clarify the record?"] },
-      { topic: "Vertigo / balance symptoms", needs: ["Diagnosis", "ENT or neurology records", "Symptom documentation", "Medication or treatment notes"], questions: ["Has vertigo or balance disturbance been fully developed in the record?", "Are ENT or vestibular records needed before any representative review?"] },
-      { topic: "Sleep disturbance", needs: ["Sleep notes", "Treatment records", "Symptom documentation", "Functional impact statement"], questions: ["Is sleep disturbance already accounted for elsewhere?", "Would updated sleep or mental health records clarify the picture?"] },
-    ],
-  },
-  {
-    condition: "Depression",
-    rating: "30%",
-    pathways: [
-      { topic: "Occupational impairment review", needs: ["Mental health notes", "Medication history", "Work-impact statement", "Therapy records"], questions: ["Does the current evidence accurately describe occupational impairment?", "Are updated treatment records needed?"] },
-      { topic: "Social impairment review", needs: ["Therapy records", "Personal statement", "Buddy statement", "Medication history"], questions: ["Does the record capture social impairment and daily-function limits?", "Would a personal statement help organize the timeline?"] },
-      { topic: "Chronic pain and sleep impact", needs: ["Pain records", "Sleep documentation", "Mental health notes", "Functional impact statement"], questions: ["Should chronic pain or sleep disruption be discussed as part of the mental health evidence picture?", "Are symptoms already captured under another condition?"] },
-    ],
-  },
-  {
-    condition: "Lumbar DDD",
-    rating: "20%",
-    pathways: [
-      { topic: "Radiculopathy progression", needs: ["Neurology exam", "Imaging", "Pain treatment records", "Functional loss statement"], questions: ["Are neurological symptoms fully captured?", "Are current records sufficient to describe progression?"] },
-      { topic: "Additional nerve involvement", needs: ["Nerve study", "Specialist visit", "Laterality documentation", "Symptom frequency"], questions: ["Is there evidence of additional nerve involvement or changed laterality?", "Would a current neurological exam clarify symptoms?"] },
-      { topic: "Mobility and functional loss", needs: ["Range of motion exam", "Physical therapy records", "Assistive device notes", "Flare-up statement"], questions: ["Does the record describe flare-ups, walking, sitting, lifting, and standing limits?", "Is a functional impact statement missing?"] },
-    ],
-  },
-  {
-    condition: "Cervical arthritis",
-    rating: "20%",
-    pathways: [
-      { topic: "Upper extremity nerve symptoms", needs: ["Neurology records", "Imaging", "Treatment notes", "Symptom description"], questions: ["Are arm, hand, numbness, or weakness symptoms documented?", "Would specialist notes help separate cervical and lumbar symptoms?"] },
-      { topic: "Headache or neck-related symptoms", needs: ["Diagnosis", "Treatment records", "Symptom log", "Medical opinion"], questions: ["Should headache patterns be discussed with the representative?", "Is there enough documentation to understand frequency and impact?"] },
-    ],
-  },
-  {
-    condition: "Bilateral radiculopathy",
-    rating: "20% each side",
-    pathways: [
-      { topic: "Symptom progression", needs: ["Neurology exam", "Medication references", "Pain records", "Functional impact statement"], questions: ["Are current symptoms worse, more frequent, or affecting mobility?", "Are both sides accurately documented?"] },
-      { topic: "Falls, weakness, or mobility limits", needs: ["Fall history", "Assistive device notes", "Physical therapy records", "Provider documentation"], questions: ["Are weakness, falls, balance, or assistive devices documented?", "Should mobility limitations be organized before a VSO meeting?"] },
-    ],
-  },
-  {
-    condition: "Sleep apnea",
-    rating: "50%",
-    pathways: [
-      { topic: "Fatigue / cognitive symptoms", needs: ["Sleep treatment records", "CPAP records", "Symptom statement", "Medication history"], questions: ["Are fatigue and concentration symptoms documented separately from other conditions?", "Are CPAP compliance or sleep clinic records available?"] },
-      { topic: "Mental health and sleep interaction", needs: ["Mental health notes", "Sleep records", "Medication history", "Functional impact statement"], questions: ["Do sleep and mental health records tell the same story?", "Would updated treatment notes clarify symptom overlap?"] },
+      { topic: "Possible secondary pathway", needs: ["Diagnosis", "Treatment records", "Symptom log", "Medical opinion"], questions: ["Which service-connected condition is the starting point?", "What evidence supports this as a discussion topic for a representative?"] },
+      { topic: "Possible increase review", needs: ["Current treatment records", "Recent exam", "Functional impact statement", "Symptom frequency"], questions: ["Does the current evidence accurately describe severity?", "Are updated records needed before any representative review?"] },
+      { topic: "Possible residual review", needs: ["Hospital or procedure records", "Follow-up records", "Residual symptom documentation", "Provider documentation"], questions: ["Are complications or residuals documented?", "Which records should be gathered before discussing any theory?"] },
     ],
   },
 ];
@@ -1171,8 +1127,8 @@ export function SecondaryOpportunityExplorer({ documents = [] }: { documents?: D
 
 export function VeteranDashboard({ profile, userEmail, documents = [] }: { profile: Profile; userEmail: string; documents?: Doc[] }) {
   const [selectedCat, setSelectedCat] = useState("Schedular Review");
-  const [understanding, setUnderstanding] = useState([true, true, true, false, false, false]);
-  const [protocol, setProtocol] = useState([true, true, false, false]);
+  const [understanding, setUnderstanding] = useState([false, false, false, false, false, false]);
+  const [protocol, setProtocol] = useState([false, false, false, false]);
   const [briefCopied, setBriefCopied] = useState(false);
 
   const branch = profile?.branch || "Add branch";
@@ -1777,11 +1733,10 @@ const graphDocuments = [
 ];
 
 const graphConditions = [
-  { id: 1, name: "Sleep apnea", category: "Respiratory", vaSC: true, ssdi: true, evidenceItems: [{ label: "Diagnosis documented", done: true }, { label: "CPAP prescription on file", done: true }, { label: "Recent treatment records within 12 months", done: false }, { label: "Current symptom statement", done: false }, { label: "Functional impact documented", done: false }], notes: "CPAP prescribed. Need current functional impact when sleep is disrupted.", whatChangedPrompts: ["CPAP tolerance or failures", "Daytime fatigue", "Work or concentration impact"] },
-  { id: 2, name: "Depression", category: "Mental health", vaSC: true, ssdi: true, evidenceItems: [{ label: "Diagnosis documented", done: true }, { label: "Treatment history", done: false }, { label: "Secondary nexus to pain or sleep documented", done: false }, { label: "Current symptom statement", done: false }, { label: "Functional impact on daily life", done: false }], notes: "Potentially connected to chronic pain and sleep disruption; needs provider records.", whatChangedPrompts: ["Mood changes", "Sleep and pain interaction", "Social or work impairment"] },
-  { id: 3, name: "Lumbar spine", category: "Musculoskeletal", vaSC: true, ssdi: true, evidenceItems: [{ label: "Original diagnosis on file", done: true }, { label: "Recent imaging", done: false }, { label: "Range of motion documented", done: false }, { label: "Current treatment records", done: false }, { label: "Functional limitation statement", done: false }], notes: "Needs recent imaging, range-of-motion evidence, and daily limitation details.", whatChangedPrompts: ["Mobility loss", "Flare frequency", "Sitting, standing, lifting limits"] },
-  { id: 4, name: "Radiculopathy", category: "Neurological", vaSC: true, ssdi: true, evidenceItems: [{ label: "Diagnosis documented", done: true }, { label: "Nexus to lumbar spine documented", done: false }, { label: "Nerve study or neurological exam", done: false }, { label: "Symptom frequency and severity statement", done: false }], notes: "Likely tied to lumbar spine, but severity and laterality need stronger documentation.", whatChangedPrompts: ["Numbness pattern", "Pain radiation", "Falls, weakness, or foot symptoms"] },
-  { id: 5, name: "Major medical event / residuals", category: "Residuals", vaSC: false, ssdi: false, evidenceItems: [{ label: "Hospital or operative records", done: false }, { label: "Complication records if applicable", done: false }, { label: "Follow-up care records", done: false }, { label: "Residual symptoms documented by provider", done: false }, { label: "Scar documentation if applicable", done: false }, { label: "Nexus theory reviewed by accredited help", done: false }], notes: "Unexplored residual lanes need records before anyone can responsibly assess a theory.", whatChangedPrompts: ["Recovery timeline", "Complications", "Residual symptoms, scars, monitoring"] },
+  { id: 1, name: "Condition from rating decision", category: "VA condition", vaSC: false, ssdi: false, evidenceItems: [{ label: "Individual rating documented", done: false }, { label: "Diagnostic code or reason documented", done: false }, { label: "Recent treatment records", done: false }, { label: "Current symptom statement", done: false }, { label: "Functional impact documented", done: false }], notes: "Upload the latest rating decision or enter this veteran's condition list to populate the graph.", whatChangedPrompts: ["Current symptoms", "Treatment changes", "Work or daily-life impact"] },
+  { id: 2, name: "SSA-recognized condition", category: "SSDI / SSA", vaSC: false, ssdi: false, evidenceItems: [{ label: "SSDI award or BPQY", done: false }, { label: "SSA medical basis", done: false }, { label: "Work history", done: false }, { label: "Functional impact statement", done: false }], notes: "Upload SSA records to compare SSA-recognized conditions with VA service-connected conditions.", whatChangedPrompts: ["SSA onset date", "Work limits", "Medical basis"] },
+  { id: 3, name: "Secondary discussion topic", category: "Educational pathway", vaSC: false, ssdi: false, evidenceItems: [{ label: "Current diagnosis", done: false }, { label: "Treatment records", done: false }, { label: "Symptom log", done: false }, { label: "Medical opinion if applicable", done: false }], notes: "Secondary pathways should be generated from this veteran's actual service-connected conditions.", whatChangedPrompts: ["Symptom onset", "Frequency", "Provider notes"] },
+  { id: 4, name: "Residual or complication", category: "Residuals", vaSC: false, ssdi: false, evidenceItems: [{ label: "Hospital or operative records", done: false }, { label: "Follow-up care records", done: false }, { label: "Residual symptoms documented by provider", done: false }, { label: "Representative review", done: false }], notes: "Residual lanes need records before anyone can responsibly assess a theory.", whatChangedPrompts: ["Recovery timeline", "Complications", "Residual symptoms"] },
 ];
 
 const graphEvents = [
@@ -1812,7 +1767,7 @@ function readinessTone(score: number) {
 export function KnowledgeGraphLab() {
   const [activeTab, setActiveTab] = useState("links");
   const [activeConditionId, setActiveConditionId] = useState(1);
-  const [ssdiSelected, setSsdiSelected] = useState(["Sleep apnea", "Depression", "Lumbar spine", "Radiculopathy"]);
+  const [ssdiSelected, setSsdiSelected] = useState<string[]>([]);
   const overallScore = graphOverallReadiness();
   const activeCondition = graphConditions.find((c) => c.id === activeConditionId) || graphConditions[0];
 
@@ -1993,7 +1948,7 @@ export function KnowledgeGraphLab() {
 // ─── Claim Review Coach ───────────────────────────────────────────────────────
 
 export function ClaimReviewCoach() {
-  const [claimStrength] = useState(62);
+  const [claimStrength] = useState(0);
 
   return (
     <div style={{ background: "#fff", border: "1px solid #d9dfd5", borderRadius: 10, padding: "18px 20px", marginBottom: 12 }}>
@@ -2055,7 +2010,7 @@ export function ClaimReviewCoach() {
           <div style={{ height: 8, background: "#f4f6f3", borderRadius: 4 }}>
             <div style={{ height: 8, width: `${claimStrength}%`, background: "#b98922", borderRadius: 4 }} />
           </div>
-          <p style={{ margin: "8px 0 0", fontSize: 12, color: "#667184" }}>Improves with individual ratings, SSDI basis, specialist notes, functional impact, and nexus clarification.</p>
+          <p style={{ margin: "8px 0 0", fontSize: 12, color: "#667184" }}>This starts at zero until this veteran's individual ratings, records, functional impact, and representative-reviewed evidence are entered.</p>
         </div>
       </div>
 
