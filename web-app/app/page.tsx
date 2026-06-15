@@ -1,6 +1,6 @@
 import { signOut } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
-import { VeteranDashboard, KnowledgeGraphLab, ClaimReviewCoach, DocumentTranslator, NonVaBenefits, SecondaryOpportunityExplorer, RatingGapAnalyzer, VSOPacketGenerator, SSDIEvidenceMapper, TDIUReadinessExplorer, BenefitsPossibilityLibrary } from "@/components/VeteranDashboard";
+import { VeteranDashboard, KnowledgeGraphLab, ClaimReviewCoach, DocumentTranslator, NonVaBenefits, SecondaryOpportunityExplorer, RatingGapAnalyzer, VSOPacketGenerator, SSDIEvidenceMapper, TDIUReadinessExplorer, BenefitsPossibilityLibrary, VADataDecoder } from "@/components/VeteranDashboard";
 import { AuthButtons } from "@/components/AuthButtons";
 import { ProfileForm } from "@/components/ProfileForm";
 import { DocumentUpload } from "@/components/DocumentUpload";
@@ -97,6 +97,7 @@ export default async function Home() {
             ["PL", "Possibility Library", "#possibility-library"],
             ["NV", "Non-VA Benefits", "#non-va-benefits"],
             ["CP", "Claims Preparation", "#claims-preparation"],
+            ["VA", "VA Data Decoder", "#va-data-decoder"],
             ["RG", "Rating Gap", "#rating-gap-analyzer"],
             ["IU", "TDIU Readiness", "#tdiu-readiness-explorer"],
             ["SO", "Secondary Explorer", "#secondary-opportunity-explorer"],
@@ -248,6 +249,9 @@ export default async function Home() {
 
         <section id="claims-preparation" className="anchorSection">
           <VeteranDashboard profile={profile} userEmail={user.email || ""} documents={documents || []} />
+        </section>
+        <section id="va-data-decoder" className="anchorSection">
+          <VADataDecoder documents={documents || []} />
         </section>
         <section id="rating-gap-analyzer" className="anchorSection">
           <RatingGapAnalyzer profile={profile} />

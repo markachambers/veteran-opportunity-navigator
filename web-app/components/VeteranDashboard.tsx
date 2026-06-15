@@ -608,6 +608,341 @@ function dedupeDocuments(documents: Doc[]) {
 }
 
 const educationDisclaimer = "Educational use only. Review all potential claims with an accredited VSO, attorney, or VA-accredited representative.";
+const vaDataDecoderDisclaimer = "Veteran Journey Navigator is an educational preparation tool. It does not file claims, submit evidence, access VA systems, provide legal advice, or replace an accredited VSO, attorney, or representative. All claim decisions are made solely by the Department of Veterans Affairs.";
+
+type DecodedCondition = {
+  condition: string;
+  rating: number | null;
+  effectiveDate: string;
+  staticIndicator: string;
+  diagnosticCode: string;
+};
+
+const diagnosticCodeDescriptions: Record<string, string> = {
+  "6260": "Tinnitus",
+  "6847": "Sleep apnea syndromes",
+  "9434": "Major depressive disorder",
+  "9411": "Posttraumatic stress disorder",
+  "5242": "Degenerative arthritis of the spine",
+  "5237": "Lumbosacral or cervical strain",
+  "8520": "Sciatic nerve paralysis / radiculopathy",
+  "7800": "Burn scars or disfigurement of head, face, or neck",
+  "7801": "Deep and nonlinear scars",
+  "7802": "Superficial nonlinear scars",
+  "7804": "Painful or unstable scars",
+  "7805": "Other scars / effects of scars",
+};
+
+function normalizedObjectValue(value: unknown) {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+}
+
+function numberFromUnknown(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const match = String(value || "").match(/\d+/);
+  return match ? Number(match[0]) : null;
+}
+
+function pickField(record: Record<string, unknown>, keys: string[]) {
+  const normalizedKeys = Object.keys(record);
+  const found = normalizedKeys.find((key) => keys.some((candidate) => key.toLowerCase() === candidate.toLowerCase()));
+  return found ? record[found] : undefined;
+}
+
+function collectObjects(value: unknown, output: Record<string, unknown>[] = []) {
+  if (!value || typeof value !== "object") return output;
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectObjects(item, output));
+    return output;
+  }
+  const record = value as Record<string, unknown>;
+  output.push(record);
+  Object.values(record).forEach((item) => collectObjects(item, output));
+  return output;
+}
+
+function decodeVaJson(value: unknown) {
+  const records = collectObjects(value);
+  const combinedCandidates = ["combinedRating", "combinedDisabilityRating", "combinedEvaluation", "totalCombinedRating", "combinedPercentage", "combined_percent", "combined_rating"];
+  let combinedRating: number | null = null;
+  for (const record of records) {
+    const candidate = pickField(record, combinedCandidates);
+    const parsed = numberFromUnknown(candidate);
+    if (parsed !== null && parsed >= 0 && parsed <= 100) {
+      combinedRating = parsed;
+      break;
+    }
+  }
+
+  const conditionKeys = ["condition", "conditionName", "disabilityName", "disability", "name", "issue", "description", "diagnosis"];
+  const ratingKeys = ["rating", "ratingPercentage", "disabilityRating", "evaluation", "evaluationPercentage", "percent", "percentage", "evaluationPercent"];
+  const effectiveKeys = ["effectiveDate", "awardEffectiveDate", "beginDate", "startDate", "date", "serviceConnectionDate"];
+  const staticKeys = ["static", "staticIndicator", "isStatic", "staticDisability", "futureExamIndicator"];
+  const codeKeys = ["diagnosticCode", "diagnostic_code", "code", "dc", "diagnostic"];
+
+  const seen = new Set<string>();
+  const conditions = records.flatMap((record) => {
+    const name = normalizedObjectValue(pickField(record, conditionKeys));
+    const rating = numberFromUnknown(pickField(record, ratingKeys));
+    const effectiveDate = normalizedObjectValue(pickField(record, effectiveKeys));
+    const diagnosticCode = normalizedObjectValue(pickField(record, codeKeys)).match(/\d{4}/)?.[0] || "";
+    const staticRaw = pickField(record, staticKeys);
+    const hasConditionShape = name && (rating !== null || effectiveDate || diagnosticCode);
+    if (!hasConditionShape || name.length > 90) return [];
+    const staticIndicator = typeof staticRaw === "boolean"
+      ? (staticRaw ? "Yes" : "No")
+      : normalizedObjectValue(staticRaw) || "Unknown";
+    const key = `${name.toLowerCase()}::${rating ?? ""}::${effectiveDate}::${diagnosticCode}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ condition: name, rating, effectiveDate: effectiveDate || "Not found", staticIndicator, diagnosticCode: diagnosticCode || "Not found" }];
+  });
+
+  return { combinedRating, conditions };
+}
+
+function combineVaRatings(ratings: number[]) {
+  const sorted = [...ratings].filter((rating) => rating > 0).sort((a, b) => b - a);
+  let raw = 0;
+  const steps = sorted.map((rating) => {
+    const before = raw;
+    raw = before + (100 - before) * (rating / 100);
+    return { rating, before: Math.round(before), after: Math.round(raw) };
+  });
+  const rounded = sorted.length ? Math.round(raw / 10) * 10 : 0;
+  return { sorted, raw: Math.round(raw), rounded: Math.min(100, rounded), steps };
+}
+
+function dateMilestoneStatus(dateValue: string) {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return [];
+  const now = new Date();
+  const years = (now.getTime() - date.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+  return [5, 10, 20].flatMap((year) => {
+    if (years >= year) return [`Reached ${year}-year mark`];
+    if (years >= year - 1) return [`Approaching ${year}-year mark`];
+    return [];
+  });
+}
+
+function diagnosticDescription(code: string) {
+  return diagnosticCodeDescriptions[code] || "Description not built in yet. Discuss the code with an accredited representative or compare against VA rating schedule references.";
+}
+
+export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
+  const [rawJson, setRawJson] = useState("");
+  const [decoded, setDecoded] = useState<{ combinedRating: number | null; conditions: DecodedCondition[] } | null>(null);
+  const [parseError, setParseError] = useState("");
+  const loweredInput = rawJson.toLowerCase();
+
+  function analyzeText(text: string) {
+    setParseError("");
+    try {
+      const parsed = JSON.parse(text);
+      const result = decodeVaJson(parsed);
+      setDecoded(result);
+      setRawJson(text);
+    } catch {
+      setDecoded(null);
+      setParseError("Could not parse JSON. Check that the data begins with { or [ and contains valid JSON syntax.");
+    }
+  }
+
+  function handleFile(file?: File | null) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => analyzeText(String(reader.result || ""));
+    reader.readAsText(file);
+  }
+
+  function clearDecoder() {
+    setRawJson("");
+    setDecoded(null);
+    setParseError("");
+  }
+
+  function exportAnalysis() {
+    const payload = { exportedAt: new Date().toISOString(), disclaimer: vaDataDecoderDisclaimer, analysis: decoded };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "va-data-decoder-analysis.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const conditions = decoded?.conditions || [];
+  const ratings = conditions.map((condition) => condition.rating).filter((rating): rating is number => typeof rating === "number");
+  const combinedMath = combineVaRatings(ratings);
+  const displayedCombined = decoded?.combinedRating ?? (ratings.length ? combinedMath.rounded : null);
+  const datedConditions = conditions.filter((condition) => !Number.isNaN(new Date(condition.effectiveDate).getTime()));
+  const oldest = [...datedConditions].sort((a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime()).slice(0, 3);
+  const newest = [...datedConditions].sort((a, b) => new Date(b.effectiveDate).getTime() - new Date(a.effectiveDate).getTime()).slice(0, 3);
+  const diagnosticCodes = Array.from(new Set(conditions.map((condition) => condition.diagnosticCode).filter((code) => code && code !== "Not found")));
+  const opportunityTopics = [
+    conditions.some((condition) => /tinnitus/i.test(condition.condition)) ? "Headaches, migraines, vertigo, or balance symptoms as discussion topics related to tinnitus evidence" : "",
+    conditions.some((condition) => /depression|ptsd|anxiety|mental/i.test(condition.condition)) ? "Mental health evaluation accuracy, occupational impairment, social impairment, and current treatment evidence" : "",
+    conditions.some((condition) => /lumbar|cervical|spine|back|neck/i.test(condition.condition)) ? "Spine progression, range of motion, flare-ups, functional loss, and neurological symptoms" : "",
+    conditions.some((condition) => /radiculopathy|sciatic|nerve/i.test(condition.condition)) ? "Radiculopathy progression, laterality, nerve studies, falls, weakness, or assistive device evidence" : "",
+    conditions.some((condition) => /sleep apnea|apnea/i.test(condition.condition)) ? "Sleep apnea treatment records, CPAP records, fatigue, and functional impact documentation" : "",
+    conditions.length ? "Whether the current evidence accurately reflects severity, effective dates, and missing documentation" : "",
+  ].filter(Boolean);
+  const evidenceChecklist = [
+    { label: "Diagnosis", found: /diagnosis|diagnostic|condition|disability/i.test(rawJson) },
+    { label: "Treatment Records", found: /treatment|provider|appointment|medical|clinic/i.test(loweredInput) },
+    { label: "Symptom Log", found: /symptom|frequency|flare|log/i.test(loweredInput) },
+    { label: "Personal Statement", found: /personal statement|statement in support|lay statement/i.test(loweredInput) },
+    { label: "Functional Impact Statement", found: /functional|work impact|occupational|daily/i.test(loweredInput) },
+    { label: "Diagnostic Codes", found: diagnosticCodes.length > 0 },
+  ];
+  const packetSections = [
+    { title: "Current Ratings", lines: [`Combined rating: ${displayedCombined !== null ? `${displayedCombined}%` : "Not found"}`, `Conditions reviewed: ${conditions.length}`] },
+    { title: "Effective Dates", lines: datedConditions.slice(0, 5).map((condition) => `${condition.condition}: ${condition.effectiveDate}`) },
+    { title: "Questions For My VSO", lines: opportunityTopics.slice(0, 5) },
+    { title: "Documents Available", lines: documents.length ? documents.map((doc) => documentLabel(doc.category)).slice(0, 5) : ["No uploaded vault documents detected"] },
+    { title: "Documents Missing", lines: evidenceChecklist.filter((item) => !item.found).map((item) => item.label) },
+    { title: "Next Actions", lines: ["Verify decoded fields against the original VA source", "Bring the packet to an accredited representative", "Do not enter VA credentials into this app"] },
+  ];
+
+  return (
+    <div style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", color: "#172132" }}>
+      <Card title="VA Data Decoder" sub="Experimental plain-English decoder for VA disability JSON or data exports the veteran already downloaded." badge="Experimental">
+        <div style={{ padding: "10px 12px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0", marginBottom: 12 }}>
+          <strong style={{ display: "block", color: "#8a6319", fontSize: 12 }}>Credentials never belong here</strong>
+          <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12, lineHeight: 1.45 }}>Only upload data you personally downloaded from your VA account. Never enter your VA login credentials into this application.</p>
+          <p style={{ margin: "4px 0 0", color: "#8a6319", fontSize: 11, lineHeight: 1.45 }}>{vaDataDecoderDisclaimer}</p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 10, marginBottom: 12 }} className="nonVaLaneGrid">
+          <div>
+            <label style={{ display: "block" }}>
+              <span style={{ display: "block", fontSize: 12, fontWeight: 800, marginBottom: 5 }}>Paste VA JSON data</span>
+              <textarea value={rawJson} onChange={(event) => setRawJson(event.target.value)} placeholder='Paste JSON here, for example: {"combinedRating":90,"conditions":[...]}' style={{ width: "100%", minHeight: 180, border: "1px solid #d9dfd5", borderRadius: 8, padding: 10, fontSize: 12, resize: "vertical" as const, boxSizing: "border-box" as const }} />
+            </label>
+            {parseError ? <p style={{ color: "#b6504c", fontSize: 12, margin: "6px 0 0" }}>{parseError}</p> : null}
+          </div>
+          <div style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
+            <strong style={{ display: "block", fontSize: 13, marginBottom: 8 }}>Import controls</strong>
+            <input type="file" accept="application/json,.json" onChange={(event) => handleFile(event.target.files?.[0])} style={{ fontSize: 12, marginBottom: 10, maxWidth: "100%" }} />
+            <button type="button" onClick={() => analyzeText(rawJson)} style={{ width: "100%", minHeight: 36, border: "1px solid #267a56", borderRadius: 8, background: "#dff3e7", color: "#267a56", fontWeight: 850, cursor: "pointer", marginBottom: 8 }}>Analyze JSON</button>
+            <button type="button" onClick={clearDecoder} style={{ width: "100%", minHeight: 34, border: "1px solid #d9dfd5", borderRadius: 8, background: "#fff", color: "#b6504c", fontWeight: 800, cursor: "pointer", marginBottom: 8 }}>Delete analysis results</button>
+            <button type="button" onClick={exportAnalysis} disabled={!decoded} style={{ width: "100%", minHeight: 34, border: "1px solid #d9dfd5", borderRadius: 8, background: decoded ? "#fff" : "#f4f6f3", color: decoded ? "#172132" : "#667184", fontWeight: 800, cursor: decoded ? "pointer" : "not-allowed" }}>Export my decoded analysis</button>
+            <p style={{ margin: "8px 0 0", color: "#667184", fontSize: 11, lineHeight: 1.4 }}>This version analyzes in the browser session. Future local/offline mode can keep analysis fully on-device.</p>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }} className="nonVaStatsGrid">
+          {[
+            { label: "Combined rating", value: displayedCombined !== null ? `${displayedCombined}%` : "Not found" },
+            { label: "Conditions found", value: String(conditions.length) },
+            { label: "Diagnostic codes", value: String(diagnosticCodes.length) },
+            { label: "Uploaded files in vault", value: String(documents.length) },
+          ].map((item) => (
+            <div key={item.label} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12, background: "#f9fbf7" }}>
+              <span style={{ fontSize: 10, color: "#267a56", fontWeight: 850, textTransform: "uppercase" as const }}>{item.label}</span>
+              <div style={{ fontSize: 22, fontWeight: 950, lineHeight: 1.15, marginTop: 4 }}>{item.value}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card title="Condition Table" sub="Fields found in the pasted or uploaded data. Verify all fields against the original VA source." badge={`${conditions.length} found`}>
+        {conditions.length ? (
+          <div style={{ overflowX: "auto", border: "1px solid #d9dfd5", borderRadius: 8 }}>
+            <table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse" as const }}>
+              <thead><tr style={{ background: "#f4f6f3" }}>{["Condition", "Rating", "Effective Date", "Static Indicator", "Diagnostic Code"].map((heading) => <th key={heading} style={{ padding: "9px 10px", textAlign: "left" as const, color: "#667184", fontSize: 11, textTransform: "uppercase" as const, borderBottom: "1px solid #d9dfd5" }}>{heading}</th>)}</tr></thead>
+              <tbody>
+                {conditions.map((condition) => (
+                  <tr key={`${condition.condition}-${condition.rating}-${condition.effectiveDate}-${condition.diagnosticCode}`}>
+                    <td style={{ padding: 10, borderBottom: "1px solid #edf0ea", fontSize: 12, fontWeight: 800 }}>{condition.condition}</td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #edf0ea", fontSize: 12 }}>{condition.rating !== null ? `${condition.rating}%` : "Not found"}</td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #edf0ea", fontSize: 12 }}>{condition.effectiveDate}</td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #edf0ea", fontSize: 12 }}>{condition.staticIndicator}</td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #edf0ea", fontSize: 12 }}>{condition.diagnosticCode}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p style={{ margin: 0, color: "#667184", fontSize: 12 }}>No condition rows decoded yet. Paste or upload JSON from the veteran's own VA data export.</p>}
+        <div style={{ marginTop: 10, padding: "9px 11px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0" }}>
+          <strong style={{ color: "#8a6319", fontSize: 12 }}>Static indicator explanation</strong>
+          <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12 }}>Static = condition currently appears marked as static within VA records. A static indicator does not automatically mean a rating is legally protected from future review or reduction. Discuss protection rules with an accredited representative.</p>
+        </div>
+      </Card>
+
+      <Card title="Effective Date Analyzer" sub="Educational timing review only. This is not legal advice about protected ratings." badge="Date review">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }} className="nonVaLaneGrid">
+          {[{ title: "Oldest effective dates", data: oldest }, { title: "Newest effective dates", data: newest }].map((group) => (
+            <div key={group.title} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}>
+              <strong style={{ fontSize: 13 }}>{group.title}</strong>
+              {(group.data.length ? group.data : [{ condition: "No dated conditions found", effectiveDate: "Upload data" }]).map((condition) => <p key={`${condition.condition}-${condition.effectiveDate}`} style={{ margin: "5px 0 0", color: "#667184", fontSize: 12 }}>{condition.condition}: {condition.effectiveDate}</p>)}
+            </div>
+          ))}
+        </div>
+        {datedConditions.flatMap((condition) => dateMilestoneStatus(condition.effectiveDate).map((status) => ({ condition, status }))).map(({ condition, status }) => (
+          <div key={`${condition.condition}-${status}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, border: "1px solid #d9dfd5", borderRadius: 8, padding: "9px 11px", marginBottom: 6 }}>
+            <span style={{ fontSize: 12 }}>{condition.condition} has been service-connected since {condition.effectiveDate}.</span>
+            <Pill label={status} />
+          </div>
+        ))}
+      </Card>
+
+      <Card title="Rating Timeline" sub="Condition, rating, and effective date as decoded from the veteran-provided data." badge="Visual timeline">
+        {conditions.length ? conditions.map((condition) => (
+          <div key={`${condition.condition}-timeline`} style={{ display: "grid", gridTemplateColumns: "160px 80px 1fr", gap: 10, alignItems: "center", padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 6 }}>
+            <strong style={{ fontSize: 12 }}>{condition.condition}</strong>
+            <span style={{ color: "#267a56", fontSize: 13, fontWeight: 900 }}>{condition.rating !== null ? `${condition.rating}%` : "N/A"}</span>
+            <div style={{ height: 6, borderRadius: 3, background: "#f4f6f3" }}>
+              <div style={{ width: `${condition.rating ?? 8}%`, maxWidth: "100%", height: 6, borderRadius: 3, background: "#267a56" }} />
+              <span style={{ display: "block", marginTop: 3, color: "#667184", fontSize: 11 }}>{condition.effectiveDate}</span>
+            </div>
+          </div>
+        )) : <p style={{ margin: 0, color: "#667184", fontSize: 12 }}>Timeline appears after condition data is decoded.</p>}
+      </Card>
+
+      <Card title="Diagnostic Code Decoder" sub="Plain-English labels for common diagnostic codes. Educational reference only." badge="Code lookup">
+        {diagnosticCodes.length ? diagnosticCodes.map((code) => (
+          <div key={code} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 6 }}>
+            <strong style={{ fontSize: 13 }}>{code}</strong><span style={{ color: "#667184", fontSize: 12 }}>{diagnosticDescription(code)}</span>
+          </div>
+        )) : <p style={{ margin: 0, color: "#667184", fontSize: 12 }}>No diagnostic codes decoded yet.</p>}
+      </Card>
+
+      <Card title="Combined Rating Calculator" sub="Educational VA math visualization from decoded condition ratings. Exact VA calculations may require bilateral factors and full codesheet review." badge="VA math">
+        {ratings.length ? (
+          <>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 10 }}>{combinedMath.sorted.map((rating, index) => <Pill key={`${rating}-${index}`} label={`${rating}%`} />)}</div>
+            {combinedMath.steps.map((step, index) => <div key={`${step.rating}-${index}`} style={{ padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 6 }}><strong style={{ fontSize: 13 }}>Step {index + 1}: add {step.rating}%</strong><p style={{ margin: "2px 0 0", color: "#667184", fontSize: 12 }}>Raw combined value moves from {step.before}% to {step.after}%.</p></div>)}
+            <div style={{ padding: "10px 12px", border: "1px solid #267a5644", borderRadius: 8, background: "#dff3e7" }}><strong style={{ color: "#267a56", fontSize: 14 }}>Result: {combinedMath.raw}% raw, rounds to {combinedMath.rounded}% combined</strong></div>
+          </>
+        ) : <p style={{ margin: 0, color: "#667184", fontSize: 12 }}>Add JSON with individual condition ratings to visualize VA math.</p>}
+      </Card>
+
+      <Card title="Opportunity Discovery Engine" sub="Topics to discuss with an accredited representative. No approval, denial, or success prediction." badge="Discussion only">
+        {(opportunityTopics.length ? opportunityTopics : ["Upload condition data to generate personalized representative discussion topics."]).map((topic) => (
+          <div key={topic} style={{ padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 6 }}>
+            <strong style={{ display: "block", color: "#267a56", fontSize: 11, textTransform: "uppercase" as const }}>Topic to discuss with an accredited representative</strong>
+            <p style={{ margin: "3px 0 0", color: "#667184", fontSize: 12 }}>{topic}</p>
+          </div>
+        ))}
+      </Card>
+
+      <Card title="Missing Evidence Review" sub="Checklist only. The decoder does not make legal or medical conclusions." badge="Evidence">
+        {evidenceChecklist.map((item) => <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 8, marginBottom: 6 }}><span style={{ fontSize: 12 }}>{item.label}</span><Pill label={item.found ? "Found" : "Missing"} /></div>)}
+      </Card>
+
+      <Card title="VSO Preparation Packet" sub="Use browser print/save as PDF for a portable discussion packet." badge="Exportable">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginBottom: 10 }} className="nonVaLaneGrid">
+          {packetSections.map((section) => <div key={section.title} style={{ border: "1px solid #d9dfd5", borderRadius: 8, padding: 12 }}><strong style={{ display: "block", fontSize: 13, marginBottom: 6 }}>{section.title}</strong>{(section.lines.length ? section.lines : ["Not enough decoded data yet"]).map((line) => <p key={line} style={{ margin: "4px 0 0", color: "#667184", fontSize: 12 }}>{line}</p>)}</div>)}
+        </div>
+        <button type="button" onClick={() => window.print()} style={{ width: "100%", minHeight: 38, border: "1px solid #d9dfd5", borderRadius: 8, background: "#fff", color: "#172132", fontWeight: 850, cursor: "pointer" }}>Print / save decoder packet as PDF</button>
+      </Card>
+    </div>
+  );
+}
 
 function evidenceStatus(need: string, documents: Doc[]) {
   const haystack = documents.map((doc) => `${doc.file_name} ${doc.category} ${doc.status}`.toLowerCase()).join(" ");
