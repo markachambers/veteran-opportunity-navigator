@@ -329,13 +329,13 @@ const seasonalPerks = [
 ];
 
 const lifeEvents = [
-  { when: "1985-1988", title: "Air Force service", status: "Verified", detail: "Service records verify honorable Air Force service." },
-  { when: "~2007", title: "Aortic aneurysm history", status: "Unconfirmed", detail: "Exact event, records, facility, and diagnosis timeline needed." },
-  { when: "2023", title: "Emergency hospitalization", status: "Unconfirmed", detail: "Hospital records and discharge summary needed." },
-  { when: "2025", title: "Major aortic surgery", status: "Unconfirmed", detail: "Operative report, surgeon notes, and follow-up plan needed." },
-  { when: "2025", title: "Dialysis episode", status: "Unconfirmed", detail: "Duration, cause, facility, and relation to surgery need documentation." },
-  { when: "2025-now", title: "Residual numbness and monitoring", status: "Investigate", detail: "Provider notes, neuro findings, scar documentation, and current limitations needed." },
-  { when: "2026", title: "Current VA/FMP evidence", status: "Verified", detail: "VA letters verify rating status, FMP condition list, preference, and loan eligibility." },
+  { when: "1985-1988", event: "Air Force service", evidence: "DD-214 / service verification", impact: "Eligibility foundation", status: "Verified", detail: "Service records verify honorable Air Force service." },
+  { when: "~2007", event: "First aneurysm history", evidence: "Hospital records needed", impact: "Major", status: "Unconfirmed", detail: "Exact event, records, facility, and diagnosis timeline needed." },
+  { when: "2023", event: "Emergency hospitalization", evidence: "UF / hospital records needed", impact: "Major", status: "Unconfirmed", detail: "Transport records, ER notes, and discharge summary should be gathered." },
+  { when: "2025", event: "Major aortic repair", evidence: "Operative report / surgical records", impact: "Major", status: "Unconfirmed", detail: "Surgeon notes, procedure report, complications, and follow-up plan needed." },
+  { when: "2025", event: "Dialysis episode", evidence: "Nephrology records needed", impact: "Major", status: "Unconfirmed", detail: "Duration, cause, facility, and relation to surgery need documentation." },
+  { when: "Current", event: "Residual numbness and monitoring", evidence: "Neurology notes / follow-up care", impact: "Active", status: "Investigate", detail: "Provider notes, neuro findings, scar documentation, and current limitations needed." },
+  { when: "2026", event: "Current VA/FMP evidence", evidence: "Benefit summary / FMP letter", impact: "Benefit lanes", status: "Verified", detail: "VA letters verify rating status, FMP condition list, preference, and loan eligibility." },
 ];
 
 const conditionMatrix = [
@@ -587,13 +587,42 @@ export function VeteranDashboard({ profile, userEmail, documents = [] }: { profi
           ))
         )}
         <h3 style={{ margin: "12px 0 8px", fontSize: 14 }}>Life Events Timeline Engine</h3>
-        {lifeEvents.map((event) => (
-          <div key={event.when} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "9px 11px", border: "1px solid #d9dfd5", borderRadius: 7, marginBottom: 5 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#b98922", minWidth: 65 }}>{event.when}</span>
-            <div style={{ flex: 1 }}><strong style={{ fontSize: 13 }}>{event.title}</strong><p style={{ margin: "1px 0 0", fontSize: 11, color: "#667184" }}>{event.detail}</p></div>
-            <Pill label={event.status} />
-          </div>
-        ))}
+        <p style={{ margin: "0 0 8px", fontSize: 12, color: "#667184" }}>
+          VSO-ready chronology: what happened, what proves it, and why it matters. This organizes the story without claiming entitlement.
+        </p>
+        <div style={{ overflowX: "auto", border: "1px solid #d9dfd5", borderRadius: 8 }}>
+          <table style={{ width: "100%", minWidth: 760, borderCollapse: "collapse" as const, background: "#fff" }}>
+            <thead>
+              <tr style={{ background: "#f4f6f3" }}>
+                {["Date", "Event", "Evidence", "Impact", "Status"].map((heading) => (
+                  <th key={heading} style={{ padding: "9px 10px", textAlign: "left" as const, color: "#667184", fontSize: 11, textTransform: "uppercase" as const, borderBottom: "1px solid #d9dfd5" }}>
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {lifeEvents.map((event) => (
+                <tr key={`${event.when}-${event.event}`}>
+                  <td style={{ padding: "10px", verticalAlign: "top", borderBottom: "1px solid #edf0ea", color: "#b98922", fontSize: 12, fontWeight: 800, whiteSpace: "nowrap" as const }}>{event.when}</td>
+                  <td style={{ padding: "10px", verticalAlign: "top", borderBottom: "1px solid #edf0ea" }}>
+                    <strong style={{ display: "block", fontSize: 13 }}>{event.event}</strong>
+                    <small style={{ display: "block", marginTop: 2, color: "#667184", fontSize: 11, lineHeight: 1.35 }}>{event.detail}</small>
+                  </td>
+                  <td style={{ padding: "10px", verticalAlign: "top", borderBottom: "1px solid #edf0ea", color: "#172132", fontSize: 12 }}>{event.evidence}</td>
+                  <td style={{ padding: "10px", verticalAlign: "top", borderBottom: "1px solid #edf0ea", color: "#172132", fontSize: 12 }}>{event.impact}</td>
+                  <td style={{ padding: "10px", verticalAlign: "top", borderBottom: "1px solid #edf0ea" }}><Pill label={event.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ marginTop: 8, padding: "9px 11px", border: "1px solid #b9892244", borderRadius: 8, background: "#fbefd0" }}>
+          <strong style={{ color: "#8a6319", fontSize: 12 }}>Next timeline upgrade</strong>
+          <p style={{ margin: "3px 0 0", color: "#8a6319", fontSize: 12 }}>
+            Let the veteran add events, attach evidence, and export this as a one-page VSO conversation packet.
+          </p>
+        </div>
       </Card>
 
       {/* 90-to-100 Workbench */}
