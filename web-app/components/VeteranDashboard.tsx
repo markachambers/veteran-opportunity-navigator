@@ -989,6 +989,18 @@ function decodeVaJson(value: unknown): VaDecoderAnalysis {
   return { ...blankVaAnalysis(), combinedRating, conditions };
 }
 
+function parseJsonBlocks(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  try {
+    return [JSON.parse(trimmed)];
+  } catch {
+    const blocks = trimmed.split(/\n\s*\n/).map((block) => block.trim()).filter(Boolean);
+    if (blocks.length <= 1) throw new Error("Invalid JSON");
+    return blocks.map((block) => JSON.parse(block));
+  }
+}
+
 function combineVaRatings(ratings: number[]) {
   const sorted = [...ratings].filter((rating) => rating > 0).sort((a, b) => b - a);
   let raw = 0;
@@ -1031,8 +1043,7 @@ export function VADataDecoder({ documents = [] }: { documents?: Doc[] }) {
   function analyzeText(text: string) {
     setParseError("");
     try {
-      const parsed = JSON.parse(text);
-      const result = decodeVaJson(parsed);
+      const result = parseJsonBlocks(text).reduce((analysis, block) => mergeAnalyses(analysis, decodeVaJson(block)), blankVaAnalysis());
       setDecoded((previous) => mergeAnalyses(previous || blankVaAnalysis(), result));
       setRawJson(text);
     } catch {
