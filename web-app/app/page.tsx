@@ -53,6 +53,15 @@ export default async function Home() {
           </div>
           <h1>Sign in to your veteran workspace.</h1>
           <p>Each veteran gets their own private profile, uploads, voice notes, evidence checklist, and meeting packet.</p>
+          <div className="inviteTrustBox" aria-label="About this invitation">
+            <strong>Testing invite</strong>
+            <p>This is the Veteran Journey Navigator prototype. If someone you know sent this link, use your own email to create a private test workspace.</p>
+            <ul>
+              <li>No VA.gov, Login.gov, or ID.me credentials are requested.</li>
+              <li>Your records stay scoped to your own sign-in.</li>
+              <li>This is educational prep, not an official VA tool.</li>
+            </ul>
+          </div>
           <AuthButtons />
           <small>Your secure sign-in link protects access to your private workspace and uploaded documents.</small>
         </div>

@@ -93,6 +93,36 @@ button {
   line-height: 1.45;
 }
 
+.inviteTrustBox {
+  margin: 16px 0 18px;
+  padding: 13px 14px;
+  border: 1px solid rgba(38, 122, 86, 0.24);
+  border-radius: 8px;
+  background: var(--green-2);
+}
+
+.inviteTrustBox strong {
+  display: block;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.inviteTrustBox p {
+  margin: 5px 0 8px;
+  color: #245642;
+  font-size: 13px;
+}
+
+.inviteTrustBox ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #245642;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .magicForm {
   display: grid;
   gap: 12px;
