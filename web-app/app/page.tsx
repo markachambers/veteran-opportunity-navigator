@@ -35,10 +35,17 @@ function displayDependents(value?: string | null) {
   return value;
 }
 
-export default async function Home() {
+type HomeProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function Home({ searchParams }: HomeProps) {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   const user = userData.user;
+  const params = await searchParams;
+  const authError = params?.auth === "error";
+  const authReason = Array.isArray(params?.reason) ? params?.reason[0] : params?.reason;
 
   if (!user) {
     return (
@@ -53,6 +60,13 @@ export default async function Home() {
           </div>
           <h1>Sign in to your veteran workspace.</h1>
           <p>Each veteran gets their own private profile, uploads, voice notes, evidence checklist, and meeting packet.</p>
+          {authError ? (
+            <div className="authErrorBox" role="alert">
+              <strong>Sign-in did not finish</strong>
+              <p>Google or Apple may not be fully enabled in Supabase yet, or the redirect URL may be missing from the provider settings.</p>
+              {authReason ? <small>Technical note: {authReason}</small> : null}
+            </div>
+          ) : null}
           <div className="inviteTrustBox" aria-label="About this invitation">
             <strong>Testing invite</strong>
             <p>This is the Veteran Journey Navigator prototype. If someone you know sent this link, use your own email to create a private test workspace.</p>

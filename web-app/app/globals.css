@@ -123,6 +123,32 @@ button {
   line-height: 1.55;
 }
 
+.authErrorBox {
+  margin: 14px 0 16px;
+  padding: 12px 13px;
+  border: 1px solid rgba(182, 80, 76, 0.28);
+  border-radius: 8px;
+  background: var(--red-2);
+}
+
+.authErrorBox strong {
+  display: block;
+  color: var(--red);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.authErrorBox p {
+  margin: 4px 0 0;
+  color: #743431;
+  font-size: 12px;
+}
+
+.authErrorBox small {
+  margin-top: 7px;
+  color: #743431;
+}
+
 .magicForm {
   display: grid;
   gap: 12px;
