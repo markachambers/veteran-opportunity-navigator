@@ -22,7 +22,11 @@ export function AuthButtons() {
     const { error: authError } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: {
+          app_name: "Veteran Journey Navigator",
+          purpose: "private veteran benefits workspace sign-in"
+        }
       }
     });
 
@@ -40,7 +44,8 @@ export function AuthButtons() {
       <div className="magicSent">
         <div className="magicIcon">✉️</div>
         <h2>Check your email</h2>
-        <p>We sent a sign-in link to <strong>{email}</strong>. Click it to access your workspace.</p>
+        <p>We sent a secure <strong>Veteran Journey Navigator</strong> sign-in link to <strong>{email}</strong>.</p>
+        <p className="muted">Look for an email titled “Veteran Journey Navigator secure sign-in link.” It may take a minute, and it can land in spam or promotions.</p>
         <p className="muted">No password needed. The link expires in 1 hour.</p>
         <button
           className="magicResend"
@@ -77,7 +82,7 @@ export function AuthButtons() {
         {loading ? "Sending…" : "Send sign-in link"}
       </button>
       <p className="muted magicNote">
-        No account needed. Enter your email and we'll send you a secure link.
+        No password needed. We'll send a secure Veteran Journey Navigator sign-in link.
       </p>
       <p className="muted" style={{ fontSize: 11, marginTop: 8, textAlign: "center", lineHeight: 1.5 }}>
         Your documents are stored privately and accessible only to your account.

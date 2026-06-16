@@ -54,7 +54,7 @@ export default async function Home() {
           <h1>Sign in to your veteran workspace.</h1>
           <p>Each veteran gets their own private profile, uploads, voice notes, evidence checklist, and meeting packet.</p>
           <AuthButtons />
-          <small>Production sign-in is handled by Supabase Auth. Your documents are scoped to your authenticated user account.</small>
+          <small>Your secure sign-in link protects access to your private workspace and uploaded documents.</small>
         </div>
       </main>
     );
