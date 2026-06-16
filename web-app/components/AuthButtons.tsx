@@ -9,6 +9,24 @@ export function AuthButtons() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  async function signInWithProvider(provider: "google" | "apple") {
+    setLoading(true);
+    setError("");
+
+    const supabase = createClient();
+    const { error: authError } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (authError) {
+      setLoading(false);
+      setError(authError.message);
+    }
+  }
+
   async function sendMagicLink() {
     if (!email || !email.includes("@")) {
       setError("Please enter a valid email address.");
@@ -59,8 +77,31 @@ export function AuthButtons() {
 
   return (
     <div className="magicForm">
+      <div className="oauthStack" aria-label="Social sign-in options">
+        <button
+          type="button"
+          className="oauthButton"
+          onClick={() => signInWithProvider("google")}
+          disabled={loading}
+        >
+          <span className="oauthMark" aria-hidden="true">G</span>
+          Continue with Google
+        </button>
+        <button
+          type="button"
+          className="oauthButton"
+          onClick={() => signInWithProvider("apple")}
+          disabled={loading}
+        >
+          <span className="oauthMark appleMark" aria-hidden="true"></span>
+          Continue with Apple
+        </button>
+      </div>
+
+      <div className="authDivider"><span>or use email</span></div>
+
       <label htmlFor="magic-email" className="magicLabel">
-        Your email address
+        Register or sign in with your email address
       </label>
       <input
         id="magic-email"
@@ -79,7 +120,7 @@ export function AuthButtons() {
         onClick={sendMagicLink}
         disabled={loading}
       >
-        {loading ? "Sending…" : "Send sign-in link"}
+        {loading ? "Sending…" : "Email me a secure sign-in link"}
       </button>
       <p className="muted magicNote">
         No password needed. We'll send a secure Veteran Journey Navigator sign-in link.
